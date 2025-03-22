@@ -4,6 +4,10 @@ from datetime import datetime
 import uuid
 import pandas as pd
 import time
+import os
+
+# Update this line at the top of your file
+BACKEND_URL = os.getenv('BACKEND_URL', 'http://localhost:8000')
 
 # Sidebar navigation
 st.sidebar.title("☕ Navigation")
@@ -99,7 +103,7 @@ elif st.session_state.current_page == "Record Roast":
                 "notes": notes
             }
             
-            response = requests.post("http://localhost:8000/roasts/", json=data)
+            response = requests.post(f"{BACKEND_URL}/roasts/", json=data)
             if response.status_code == 200:
                 st.success("✅ Roast recorded successfully!")
 
@@ -112,7 +116,7 @@ elif st.session_state.current_page == "Score Coffee":
     st.header("📋 Coffee Cupping Score Sheet")
     
     # Get available roasts
-    response = requests.get("http://localhost:8000/roasts/")
+    response = requests.get(f"{BACKEND_URL}/roasts/")
     roasts = response.json()
     
     if roasts:
@@ -172,7 +176,7 @@ elif st.session_state.current_page == "Score Coffee":
                         "notes": notes
                     }
                     
-                    response = requests.post("http://localhost:8000/scores/", json=data)
+                    response = requests.post(f"{BACKEND_URL}/scores/", json=data)
                     if response.status_code == 200:
                         st.success(f"✅ Score saved successfully! Total Score: {total_score:.2f}")
                     else:
@@ -184,7 +188,7 @@ elif st.session_state.current_page == "Roast History":
     st.header("📚 Roast History")
     
     # Get roast data
-    response = requests.get("http://localhost:8000/roasts/")
+    response = requests.get(f"{BACKEND_URL}/roasts/")
     if response.status_code == 200:
         roasts = response.json()
         if roasts:
@@ -259,7 +263,7 @@ elif st.session_state.current_page == "Cupping History":
     st.header("📊 Cupping History")
     
     # Get cupping scores
-    response = requests.get("http://localhost:8000/scores/")
+    response = requests.get(f"{BACKEND_URL}/scores/")
     if response.status_code == 200:
         scores = response.json()
         if scores:
@@ -275,7 +279,7 @@ elif st.session_state.current_page == "Cupping History":
             df['date'] = pd.to_datetime(df['date']).dt.date
             
             # Get roast information to show coffee names
-            roast_response = requests.get("http://localhost:8000/roasts/")
+            roast_response = requests.get(f"{BACKEND_URL}/roasts/")
             if roast_response.status_code == 200:
                 roasts = pd.DataFrame(roast_response.json(), columns=[
                     'roast_id', 'date', 'coffee_name', 'agtron_whole',
