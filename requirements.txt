@@ -1,10 +1,10 @@
-fastapi
-uvicorn
+fastapi==0.104.1
+uvicorn==0.24.0
 streamlit
 requests
 pandas
 python-multipart
-sqlalchemy
-databases[postgresql]
-psycopg2-binary
+sqlalchemy==2.0.23
+databases[postgresql]==0.8.0
+psycopg2-binary==2.9.9
 aiosqlite 
