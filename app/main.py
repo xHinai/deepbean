@@ -52,10 +52,16 @@ coffee_scores = sqlalchemy.Table(
     sqlalchemy.Column("notes", sqlalchemy.String),
 )
 
+# Create the engine
+engine = sqlalchemy.create_engine(DATABASE_URL)
+
 app = FastAPI()
 
 @app.on_event("startup")
 async def startup():
+    # Create tables
+    metadata.create_all(engine)
+    # Connect to the database
     await database.connect()
 
 @app.on_event("shutdown")

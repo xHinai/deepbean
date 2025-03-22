@@ -6,4 +6,6 @@ pandas
 python-multipart
 sqlalchemy
 databases[sqlite]
+databases[postgresql]
+psycopg2-binary
 aiosqlite 
