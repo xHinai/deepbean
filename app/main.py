@@ -4,9 +4,11 @@ from .models import CoffeeRoast, CoffeeScore
 import databases
 import sqlalchemy
 import uuid
+import aiosqlite
 
 # Use PostgreSQL URL from environment variable or default to SQLite for local development
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./coffee_scores.db")
+DATABASE_FILE = "coffee_scores.db"
 
 # If using PostgreSQL, handle the URL format
 if DATABASE_URL.startswith("postgres://"):
@@ -59,9 +61,46 @@ app = FastAPI()
 
 @app.on_event("startup")
 async def startup():
-    # Create tables
-    metadata.create_all(engine)
-    # Connect to the database
+    # Create SQLite database and tables
+    if DATABASE_URL.startswith("sqlite"):
+        # Create tables directly with SQLite
+        async with aiosqlite.connect(DATABASE_FILE) as db:
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS coffee_roasts (
+                    roast_id TEXT PRIMARY KEY,
+                    date TEXT,
+                    coffee_name TEXT,
+                    agtron_whole INTEGER,
+                    agtron_ground INTEGER,
+                    drop_temp REAL,
+                    development_time REAL,
+                    total_time REAL,
+                    dtr_ratio REAL,
+                    notes TEXT
+                )
+            """)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS coffee_scores (
+                    score_id TEXT PRIMARY KEY,
+                    roast_id TEXT,
+                    date TEXT,
+                    fragrance_aroma REAL,
+                    flavor REAL,
+                    aftertaste REAL,
+                    acidity REAL,
+                    body REAL,
+                    uniformity REAL,
+                    clean_cup REAL,
+                    sweetness REAL,
+                    overall REAL,
+                    defects TEXT,
+                    total_score REAL,
+                    notes TEXT,
+                    FOREIGN KEY(roast_id) REFERENCES coffee_roasts(roast_id)
+                )
+            """)
+            await db.commit()
+    
     await database.connect()
 
 @app.on_event("shutdown")
