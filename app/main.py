@@ -64,21 +64,30 @@ metadata.create_all(engine)
 
 app = FastAPI()
 
+@app.get("/health")
+async def health_check():
+    try:
+        # Test database connection
+        await database.fetch_one("SELECT 1")
+        return {"status": "healthy", "database": "connected"}
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return {"status": "unhealthy", "error": str(e)}
+
 @app.on_event("startup")
 async def startup():
     logger.info("Starting up application...")
-    logger.info(f"Using DATABASE_URL: {DATABASE_URL.replace(DATABASE_URL.split('@')[0], '***')}")
+    logger.info(f"Using DATABASE_URL: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'sqlite'}")
     try:
+        await database.connect()
+        logger.info("Database connection established")
+        
         # Create tables
         engine = sqlalchemy.create_engine(DATABASE_URL)
         metadata.create_all(engine)
         logger.info("Database tables created successfully")
-        
-        # Connect to the database
-        await database.connect()
-        logger.info("Database connection established")
     except Exception as e:
-        logger.error(f"Error during startup: {str(e)}")
+        logger.error(f"Startup error: {str(e)}")
         raise
 
 @app.on_event("shutdown")
