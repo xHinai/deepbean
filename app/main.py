@@ -5,6 +5,11 @@ import databases
 import sqlalchemy
 import uuid
 import aiosqlite
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Use PostgreSQL URL from Railway
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./coffee_scores.db")
@@ -61,7 +66,20 @@ app = FastAPI()
 
 @app.on_event("startup")
 async def startup():
-    await database.connect()
+    logger.info("Starting up application...")
+    logger.info(f"Using DATABASE_URL: {DATABASE_URL.replace(DATABASE_URL.split('@')[0], '***')}")
+    try:
+        # Create tables
+        engine = sqlalchemy.create_engine(DATABASE_URL)
+        metadata.create_all(engine)
+        logger.info("Database tables created successfully")
+        
+        # Connect to the database
+        await database.connect()
+        logger.info("Database connection established")
+    except Exception as e:
+        logger.error(f"Error during startup: {str(e)}")
+        raise
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -96,4 +114,8 @@ async def create_score(score: CoffeeScore):
 @app.get("/scores/")
 async def get_scores():
     query = coffee_scores.select()
-    return await database.fetch_all(query) 
+    return await database.fetch_all(query)
+
+@app.get("/")
+async def root():
+    return {"status": "ok"} 
