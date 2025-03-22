@@ -3,4 +3,7 @@ uvicorn
 streamlit
 requests
 pandas
-python-multipart 
+python-multipart
+sqlalchemy
+databases[sqlite]
+aiosqlite 

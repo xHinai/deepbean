@@ -1,68 +1,94 @@
+import os
 from fastapi import FastAPI, HTTPException
 from .models import CoffeeRoast, CoffeeScore
-import sqlite3
+import databases
+import sqlalchemy
 import uuid
+
+# Use PostgreSQL URL from environment variable or default to SQLite for local development
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./coffee_scores.db")
+
+# If using PostgreSQL, handle the URL format
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# Create database connection
+database = databases.Database(DATABASE_URL)
+metadata = sqlalchemy.MetaData()
+
+# Define tables
+coffee_roasts = sqlalchemy.Table(
+    "coffee_roasts",
+    metadata,
+    sqlalchemy.Column("roast_id", sqlalchemy.String, primary_key=True),
+    sqlalchemy.Column("date", sqlalchemy.String),
+    sqlalchemy.Column("coffee_name", sqlalchemy.String),
+    sqlalchemy.Column("agtron_whole", sqlalchemy.Integer),
+    sqlalchemy.Column("agtron_ground", sqlalchemy.Integer),
+    sqlalchemy.Column("drop_temp", sqlalchemy.Float),
+    sqlalchemy.Column("development_time", sqlalchemy.Float),
+    sqlalchemy.Column("total_time", sqlalchemy.Float),
+    sqlalchemy.Column("dtr_ratio", sqlalchemy.Float),
+    sqlalchemy.Column("notes", sqlalchemy.String),
+)
+
+coffee_scores = sqlalchemy.Table(
+    "coffee_scores",
+    metadata,
+    sqlalchemy.Column("score_id", sqlalchemy.String, primary_key=True),
+    sqlalchemy.Column("roast_id", sqlalchemy.String),
+    sqlalchemy.Column("date", sqlalchemy.String),
+    sqlalchemy.Column("fragrance_aroma", sqlalchemy.Float),
+    sqlalchemy.Column("flavor", sqlalchemy.Float),
+    sqlalchemy.Column("aftertaste", sqlalchemy.Float),
+    sqlalchemy.Column("acidity", sqlalchemy.Float),
+    sqlalchemy.Column("body", sqlalchemy.Float),
+    sqlalchemy.Column("uniformity", sqlalchemy.Float),
+    sqlalchemy.Column("clean_cup", sqlalchemy.Float),
+    sqlalchemy.Column("sweetness", sqlalchemy.Float),
+    sqlalchemy.Column("overall", sqlalchemy.Float),
+    sqlalchemy.Column("defects", sqlalchemy.String),
+    sqlalchemy.Column("total_score", sqlalchemy.Float),
+    sqlalchemy.Column("notes", sqlalchemy.String),
+)
 
 app = FastAPI()
 
+@app.on_event("startup")
+async def startup():
+    await database.connect()
+
+@app.on_event("shutdown")
+async def shutdown():
+    await database.disconnect()
+
 @app.post("/roasts/")
 async def create_roast(roast: CoffeeRoast):
-    conn = sqlite3.connect("coffee_scores.db")
-    cursor = conn.cursor()
-    roast_dict = roast.dict()
-    roast_dict['roast_id'] = str(uuid.uuid4())
-    
-    cursor.execute("""
-        INSERT INTO coffee_roasts 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, tuple(roast_dict.values()))
-    conn.commit()
-    return {"roast_id": roast_dict['roast_id']}
+    query = coffee_roasts.insert().values(**roast.dict())
+    await database.execute(query)
+    return {"message": "Roast saved successfully"}
 
 @app.get("/roasts/")
 async def get_roasts():
-    conn = sqlite3.connect("coffee_scores.db")
-    cursor = conn.cursor()
-    roasts = cursor.execute("SELECT * FROM coffee_roasts").fetchall()
-    return roasts
+    query = coffee_roasts.select()
+    return await database.fetch_all(query)
 
 @app.get("/roasts/{roast_id}")
 async def get_roast(roast_id: str):
-    conn = sqlite3.connect("coffee_scores.db")
-    cursor = conn.cursor()
-    roast = cursor.execute(
-        "SELECT * FROM coffee_roasts WHERE roast_id = ?", 
-        (roast_id,)
-    ).fetchone()
-    return roast 
+    query = coffee_roasts.select().where(coffee_roasts.c.roast_id == roast_id)
+    roast = await database.fetch_one(query)
+    if roast:
+        return roast
+    else:
+        raise HTTPException(status_code=404, detail="Roast not found")
 
 @app.post("/scores/")
 async def create_score(score: CoffeeScore):
-    conn = sqlite3.connect("coffee_scores.db")
-    cursor = conn.cursor()
-    
-    cursor.execute("""
-        INSERT INTO coffee_scores (
-            score_id, roast_id, date, fragrance_aroma, flavor, 
-            aftertaste, acidity, body, uniformity, clean_cup, 
-            sweetness, overall, defects, total_score, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        score.score_id, score.roast_id, score.date, 
-        score.fragrance_aroma, score.flavor, score.aftertaste, 
-        score.acidity, score.body, score.uniformity, 
-        score.clean_cup, score.sweetness, score.overall, 
-        score.defects, score.total_score, score.notes
-    ))
-    
-    conn.commit()
-    conn.close()
+    query = coffee_scores.insert().values(**score.dict())
+    await database.execute(query)
     return {"message": "Score saved successfully"}
 
 @app.get("/scores/")
 async def get_scores():
-    conn = sqlite3.connect("coffee_scores.db")
-    cursor = conn.cursor()
-    scores = cursor.execute("SELECT * FROM coffee_scores").fetchall()
-    conn.close()
-    return scores 
+    query = coffee_scores.select()
+    return await database.fetch_all(query) 

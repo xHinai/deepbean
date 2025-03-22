@@ -37,4 +37,10 @@ ENV/
 
 # OS
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# New additions from the code block
+__pycache__/
+*.pyc
+venv/
+.env 

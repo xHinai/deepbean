@@ -186,7 +186,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 👥 Authors
 
-- Your Name - Initial work - [YourGitHub](https://github.com/yourusername)
+- Ali Al Hinai - [Github](https://github.com/xHinai)
 
 ## 🙏 Acknowledgments
 
@@ -194,8 +194,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - FastAPI team for the amazing framework
 - Streamlit team for making data apps easy to build
 
-## 📧 Contact
-
-Your Name - [@yourtwitter](https://twitter.com/yourtwitter) - email@example.com
-
-Project Link: [https://github.com/yourusername/coffee-app](https://github.com/yourusername/coffee-app)
