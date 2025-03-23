@@ -16,34 +16,23 @@ BACKEND_URL = os.getenv('BACKEND_URL', 'http://localhost:8080')
 def api_call(endpoint, method='get', data=None):
     url = f"{BACKEND_URL}{endpoint}"
     try:
-        st.write(f"Calling API: {url}")  # Debug info
         if method == 'get':
             response = requests.get(url)
         elif method == 'post':
             response = requests.post(url, json=data)
         
-        # Show response status and content for debugging
-        st.write(f"Response status: {response.status_code}")
-        if response.content:
-            st.write(f"Response preview: {response.text[:100]}...")  # Show first 100 chars
-        else:
-            st.write("Empty response content")
-        
-        # Handle the response
+        # Handle the response without debug messages
         if response.status_code == 200:
             try:
                 return response.json()
             except json.JSONDecodeError as e:
-                st.error(f"Invalid JSON response: {e}")
-                st.error(f"Response content: {response.text}")
+                st.error(f"Error: Invalid response from server")
                 return None
         else:
-            st.error(f"Error response: {response.status_code}")
-            st.error(f"Response content: {response.text}")
+            st.error(f"Error: Server returned status code {response.status_code}")
             return None
     except requests.exceptions.RequestException as e:
-        st.error(f"Error connecting to backend: {BACKEND_URL}")
-        st.error(f"Error details: {str(e)}")
+        st.error(f"Error connecting to server")
         return None
 
 # Title
@@ -219,7 +208,8 @@ elif st.session_state.current_page == "Roast History":
         try:
             df['date'] = pd.to_datetime(df['date'])
         except:
-            st.warning("Error converting dates. Displaying raw data.")
+            # Silently handle date conversion errors
+            pass
         
         # Add filters
         st.subheader("Filters")
@@ -227,16 +217,11 @@ elif st.session_state.current_page == "Roast History":
         with col1:
             if 'coffee_name' in df.columns:
                 coffee_options = sorted(df['coffee_name'].unique())
-                if coffee_options:
-                    coffee_filter = st.multiselect(
-                        "Filter by Coffee Name",
-                        options=coffee_options
-                    )
-                else:
-                    st.info("No coffee names available to filter.")
-                    coffee_filter = []
+                coffee_filter = st.multiselect(
+                    "Filter by Coffee Name",
+                    options=coffee_options
+                )
             else:
-                st.info("Coffee name column not found.")
                 coffee_filter = []
                 
         with col2:
@@ -249,10 +234,8 @@ elif st.session_state.current_page == "Roast History":
                         value=(min_date, max_date)
                     )
                 except:
-                    st.warning("Error with date picker. Using all dates.")
                     date_range = None
             else:
-                st.info("Date column not found.")
                 date_range = None
                 
         # Apply filters
@@ -264,32 +247,28 @@ elif st.session_state.current_page == "Roast History":
                 start_date = pd.Timestamp(date_range[0])
                 end_date = pd.Timestamp(date_range[1])
                 df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
-            except Exception as e:
-                st.error(f"Error filtering by date: {e}")
+            except:
+                # Silently handle date filtering errors
+                pass
                 
         # Display data
         st.subheader("Roast Records")
         if not df.empty:
-            try:
-                st.dataframe(
-                    df.sort_values('date', ascending=False) if 'date' in df.columns else df,
-                    hide_index=True
-                )
-                
-                # Add download button
-                csv = df.to_csv(index=False)
-                st.download_button(
-                    label="📥 Download Roast History",
-                    data=csv,
-                    file_name="coffee_roast_history.csv",
-                    mime="text/csv"
-                )
-            except Exception as e:
-                st.error(f"Error displaying data: {e}")
-                st.write("Raw data:")
-                st.write(df)
+            st.dataframe(
+                df.sort_values('date', ascending=False) if 'date' in df.columns else df,
+                hide_index=True
+            )
+            
+            # Add download button
+            csv = df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download Roast History",
+                data=csv,
+                file_name="coffee_roast_history.csv",
+                mime="text/csv"
+            )
         else:
-            st.info("No records to display after filtering.")
+            st.info("No records to display.")
     else:
         st.info("No roast records found.")
 
@@ -309,7 +288,7 @@ elif st.session_state.current_page == "Cupping History":
                 try:
                     df['date'] = pd.to_datetime(df['date'])
                 except:
-                    st.warning("Error converting dates in scores. Using raw dates.")
+                    pass  # Silently handle the error
             
             # Get roast information to show coffee names
             roasts = api_call('/roasts/')
@@ -321,7 +300,7 @@ elif st.session_state.current_page == "Cupping History":
                         if 'roast_id' in df.columns:
                             df['coffee_name'] = df['roast_id'].map(roast_lookup)
                 except Exception as e:
-                    st.error(f"Error linking roasts to scores: {e}")
+                    pass  # Skip the error message for non-critical issues
             
             # Add filters with robust error handling
             st.subheader("Filters")
@@ -329,16 +308,11 @@ elif st.session_state.current_page == "Cupping History":
             with col1:
                 if 'coffee_name' in df.columns:
                     coffee_options = sorted(df['coffee_name'].dropna().unique())
-                    if coffee_options:
-                        coffee_filter = st.multiselect(
-                            "Filter by Coffee Name",
-                            options=coffee_options
-                        )
-                    else:
-                        st.info("No coffee names available to filter.")
-                        coffee_filter = []
+                    coffee_filter = st.multiselect(
+                        "Filter by Coffee Name",
+                        options=coffee_options
+                    )
                 else:
-                    st.info("Coffee name column not found.")
                     coffee_filter = []
                     
             with col2:
@@ -351,10 +325,8 @@ elif st.session_state.current_page == "Cupping History":
                             value=(min_date, max_date)
                         )
                     except:
-                        st.warning("Error with date picker. Using all dates.")
                         date_range = None
                 else:
-                    st.info("Date column not found.")
                     date_range = None
             
             # Apply filters with error handling
@@ -366,35 +338,28 @@ elif st.session_state.current_page == "Cupping History":
                     start_date = pd.Timestamp(date_range[0])
                     end_date = pd.Timestamp(date_range[1])
                     df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
-                except Exception as e:
-                    st.error(f"Error filtering by date: {e}")
+                except:
+                    pass  # Skip the error message for non-critical issues
             
             # Display data
             st.subheader("Cupping Scores")
             if not df.empty:
-                try:
-                    st.dataframe(
-                        df.sort_values('date', ascending=False) if 'date' in df.columns else df,
-                        hide_index=True
-                    )
-                    
-                    # Add download button
-                    csv = df.to_csv(index=False)
-                    st.download_button(
-                        label="📥 Download Cupping History",
-                        data=csv,
-                        file_name="coffee_cupping_history.csv",
-                        mime="text/csv"
-                    )
-                except Exception as e:
-                    st.error(f"Error displaying data: {e}")
-                    st.write("Raw data:")
-                    st.write(df)
+                st.dataframe(
+                    df.sort_values('date', ascending=False) if 'date' in df.columns else df,
+                    hide_index=True
+                )
+                
+                # Add download button
+                csv = df.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download Cupping History",
+                    data=csv,
+                    file_name="coffee_cupping_history.csv",
+                    mime="text/csv"
+                )
             else:
                 st.info("No records to display after filtering.")
         except Exception as e:
-            st.error(f"Error processing scores data: {e}")
-            st.write("Raw scores data:")
-            st.write(scores)
+            pass  # Skip the error message for non-critical issues
     else:
         st.info("No cupping records found.") 
