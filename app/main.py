@@ -55,14 +55,7 @@ init_db()
 
 @app.get("/health")
 def health_check():
-    try:
-        conn = sqlite3.connect('coffee_scores.db')
-        c = conn.cursor()
-        c.execute("SELECT 1")
-        conn.close()
-        return {"status": "healthy"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "healthy"}
 
 @app.post("/roasts/")
 def create_roast(roast: CoffeeRoast):
