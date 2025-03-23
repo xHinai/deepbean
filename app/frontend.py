@@ -141,64 +141,67 @@ elif st.session_state.current_page == "Score Coffee":
     roasts = api_call('/roasts/')
     
     if roasts:
+        # For databases/sqlalchemy response format (dictionary-like objects)
         # Create selection box for roasts
-        roast_options = {f"{r[2]} - {r[1]}": r[0] for r in roasts}  # coffee_name - date: roast_id
-        selected_roast = st.selectbox(
-            "🔍 Select Coffee to Score",
-            options=list(roast_options.keys())
-        )
+        roast_options = {f"{r['coffee_name']} - {r['date']}": r['roast_id'] for r in roasts}
         
-        if selected_roast:
-            roast_id = roast_options[selected_roast]
+        if roast_options:
+            selected_roast = st.selectbox(
+                "🔍 Select Coffee to Score",
+                options=list(roast_options.keys())
+            )
             
-            with st.form("scoring_form"):
-                date = st.date_input("📅 Cupping Date")
+            if selected_roast:
+                roast_id = roast_options[selected_roast]
                 
-                col1, col2 = st.columns(2)
-                with col1:
-                    fragrance_aroma = st.slider("👃 Fragrance/Aroma", 0.0, 10.0, 6.0, 0.25)
-                    flavor = st.slider("👅 Flavor", 0.0, 10.0, 6.0, 0.25)
-                    aftertaste = st.slider("💭 Aftertaste", 0.0, 10.0, 6.0, 0.25)
-                    acidity = st.slider("✨ Acidity", 0.0, 10.0, 6.0, 0.25)
-                
-                with col2:
-                    body = st.slider("💪 Body", 0.0, 10.0, 6.0, 0.25)
-                    uniformity = st.slider("🎯 Uniformity", 0.0, 10.0, 6.0, 0.25)
-                    clean_cup = st.slider("✨ Clean Cup", 0.0, 10.0, 6.0, 0.25)
-                    sweetness = st.slider("🍯 Sweetness", 0.0, 10.0, 6.0, 0.25)
-                
-                overall = st.slider("⭐ Overall", 0.0, 10.0, 6.0, 0.25)
-                defects = st.number_input("❌ Defects", 0, 100, 0)
-                notes = st.text_area("📝 Cupping Notes")
+                with st.form("scoring_form"):
+                    date = st.date_input("📅 Cupping Date")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        fragrance_aroma = st.slider("👃 Fragrance/Aroma", 0.0, 10.0, 6.0, 0.25)
+                        flavor = st.slider("👅 Flavor", 0.0, 10.0, 6.0, 0.25)
+                        aftertaste = st.slider("💭 Aftertaste", 0.0, 10.0, 6.0, 0.25)
+                        acidity = st.slider("✨ Acidity", 0.0, 10.0, 6.0, 0.25)
+                    
+                    with col2:
+                        body = st.slider("💪 Body", 0.0, 10.0, 6.0, 0.25)
+                        uniformity = st.slider("🎯 Uniformity", 0.0, 10.0, 6.0, 0.25)
+                        clean_cup = st.slider("✨ Clean Cup", 0.0, 10.0, 6.0, 0.25)
+                        sweetness = st.slider("🍯 Sweetness", 0.0, 10.0, 6.0, 0.25)
+                    
+                    overall = st.slider("⭐ Overall", 0.0, 10.0, 6.0, 0.25)
+                    defects = st.number_input("❌ Defects", 0, 100, 0)
+                    notes = st.text_area("📝 Cupping Notes")
 
-                if st.form_submit_button("💾 Submit Score"):
-                    total_score = (
-                        fragrance_aroma + flavor + aftertaste + acidity + 
-                        body + uniformity + clean_cup + sweetness + 
-                        overall * 2 - defects
-                    )
-                    
-                    data = {
-                        "score_id": str(uuid.uuid4()),
-                        "roast_id": roast_id,
-                        "date": str(date),
-                        "fragrance_aroma": fragrance_aroma,
-                        "flavor": flavor,
-                        "aftertaste": aftertaste,
-                        "acidity": acidity,
-                        "body": body,
-                        "uniformity": uniformity,
-                        "clean_cup": clean_cup,
-                        "sweetness": sweetness,
-                        "overall": overall,
-                        "defects": defects,
-                        "total_score": total_score,
-                        "notes": notes
-                    }
-                    
-                    result = api_call("/scores/", method="post", data=data)
-                    if result:
-                        st.success(f"✅ Score saved successfully! Total Score: {total_score:.2f}")
+                    if st.form_submit_button("💾 Submit Score"):
+                        total_score = (
+                            fragrance_aroma + flavor + aftertaste + acidity + 
+                            body + uniformity + clean_cup + sweetness + 
+                            overall * 2 - defects
+                        )
+                        
+                        data = {
+                            "score_id": str(uuid.uuid4()),
+                            "roast_id": roast_id,
+                            "date": str(date),
+                            "fragrance_aroma": fragrance_aroma,
+                            "flavor": flavor,
+                            "aftertaste": aftertaste,
+                            "acidity": acidity,
+                            "body": body,
+                            "uniformity": uniformity,
+                            "clean_cup": clean_cup,
+                            "sweetness": sweetness,
+                            "overall": overall,
+                            "defects": defects,
+                            "total_score": total_score,
+                            "notes": notes
+                        }
+                        
+                        result = api_call("/scores/", method="post", data=data)
+                        if result:
+                            st.success(f"✅ Score saved successfully! Total Score: {total_score:.2f}")
     else:
         st.warning("No roasts available to score. Please record a roast first.")
 
@@ -209,15 +212,8 @@ elif st.session_state.current_page == "Roast History":
     roasts = api_call('/roasts/')
     
     if roasts:
-        # Convert to DataFrame for better display
-        df = pd.DataFrame(roasts, columns=[
-            'roast_id', 'date', 'coffee_name', 'agtron_whole', 
-            'agtron_ground', 'drop_temp', 'development_time', 
-            'total_time', 'dtr_ratio', 'notes'
-        ])
-        
-        # Convert date strings to datetime
-        df['date'] = pd.to_datetime(df['date']).dt.date
+        # No need to convert - already in dictionary format
+        df = pd.DataFrame(roasts)
         
         # Add filters
         st.subheader("Filters")
@@ -281,25 +277,13 @@ elif st.session_state.current_page == "Cupping History":
     scores = api_call('/scores/')
     
     if scores:
-        # Convert to DataFrame
-        df = pd.DataFrame(scores, columns=[
-            'score_id', 'roast_id', 'date', 'fragrance_aroma',
-            'flavor', 'aftertaste', 'acidity', 'body', 'uniformity',
-            'clean_cup', 'sweetness', 'overall', 'defects',
-            'total_score', 'notes'
-        ])
-        
-        # Convert date strings to datetime
-        df['date'] = pd.to_datetime(df['date']).dt.date
+        # No need to convert - already in dictionary format
+        df = pd.DataFrame(scores)
         
         # Get roast information to show coffee names
         roasts = api_call('/roasts/')
         if roasts:
-            roast_df = pd.DataFrame(roasts, columns=[
-                'roast_id', 'date', 'coffee_name', 'agtron_whole',
-                'agtron_ground', 'drop_temp', 'development_time',
-                'total_time', 'dtr_ratio', 'notes'
-            ])
+            roast_df = pd.DataFrame(roasts)
             roast_lookup = dict(zip(roast_df['roast_id'], roast_df['coffee_name']))
             df['coffee_name'] = df['roast_id'].map(roast_lookup)
         
