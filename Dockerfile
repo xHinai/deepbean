@@ -10,9 +10,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Add a script to handle port environment variable
+RUN echo '#!/bin/bash\nPORT=${PORT:-8080}\npython -m uvicorn app.main:app --host 0.0.0.0 --port $PORT' > start.sh && \
+    chmod +x start.sh
+
 # Add healthcheck
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl --fail http://localhost:${PORT}/health || exit 1
+    CMD curl --fail http://localhost:8080/health || exit 1
 
-# The command will be overridden by Railway's startCommand
-CMD python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} 
+# Use a script that properly handles the environment variable
+CMD ["./start.sh"] 
