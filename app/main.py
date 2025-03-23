@@ -4,11 +4,20 @@ from .models import CoffeeRoast, CoffeeScore
 import databases
 import sqlalchemy
 import uuid
+import logging
 
-app = FastAPI()
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Use PostgreSQL URL from environment variable
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./coffee_scores.db")  # Fallback for local development
+# Get database URL from environment variable
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    logger.error("DATABASE_URL environment variable not set!")
+    DATABASE_URL = "sqlite:///./coffee_scores.db"  # Fallback for local development
+    logger.info(f"Using fallback database: {DATABASE_URL}")
+else:
+    logger.info(f"Using DATABASE_URL: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'sqlite'}")
 
 # If using PostgreSQL, handle the URL format
 if DATABASE_URL.startswith("postgres://"):
@@ -54,17 +63,24 @@ coffee_scores = sqlalchemy.Table(
     sqlalchemy.Column("notes", sqlalchemy.String),
 )
 
-# Create engine and tables
+# Create tables if they don't exist (but don't recreate them or drop existing data)
+# This modification ensures tables are only created if they don't exist
 engine = sqlalchemy.create_engine(DATABASE_URL)
-metadata.create_all(engine)
+metadata.create_all(engine, checkfirst=True)  # Important: checkfirst=True prevents recreating existing tables
+
+app = FastAPI()
 
 @app.on_event("startup")
 async def startup():
+    logger.info("Connecting to database...")
     await database.connect()
+    logger.info("Database connection established")
 
 @app.on_event("shutdown")
 async def shutdown():
+    logger.info("Disconnecting from database...")
     await database.disconnect()
+    logger.info("Database disconnected")
 
 @app.get("/health")
 async def health_check():
@@ -74,6 +90,7 @@ async def health_check():
         result = await database.fetch_one(query)
         return {"status": "healthy", "database": "connected"}
     except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/roasts/")
