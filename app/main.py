@@ -10,18 +10,19 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Get database URL from environment variable
+# Get database URL from environment variables
 DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL:
-    logger.error("DATABASE_URL environment variable not set!")
-    DATABASE_URL = "sqlite:///./coffee_scores.db"  # Fallback for local development
-    logger.info(f"Using fallback database: {DATABASE_URL}")
-else:
-    logger.info(f"Using DATABASE_URL: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'sqlite'}")
 
-# If using PostgreSQL, handle the URL format
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+# Print out which database we're using (for debugging)
+if DATABASE_URL:
+    logger.info(f"Using DATABASE_URL: {DATABASE_URL.split('@')[0]}...")
+    # If using PostgreSQL, convert the URL format
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+        logger.info("Fixed PostgreSQL URL format")
+else:
+    # Do NOT allow fallback to SQLite
+    raise Exception("DATABASE_URL environment variable not set! Cannot proceed without a database connection.")
 
 # Create database connection
 database = databases.Database(DATABASE_URL)
@@ -63,22 +64,37 @@ coffee_scores = sqlalchemy.Table(
     sqlalchemy.Column("notes", sqlalchemy.String),
 )
 
-# Create tables if they don't exist (but don't recreate them or drop existing data)
-# This modification ensures tables are only created if they don't exist
-engine = sqlalchemy.create_engine(DATABASE_URL)
-metadata.create_all(engine, checkfirst=True)  # Important: checkfirst=True prevents recreating existing tables
+# Create engine and attempt to create tables
+try:
+    engine = sqlalchemy.create_engine(DATABASE_URL)
+    logger.info("Created database engine")
+    
+    # Try to create tables if they don't exist
+    metadata.create_all(engine, checkfirst=True)
+    logger.info("Database tables initialized")
+except Exception as e:
+    logger.error(f"Failed to initialize database: {str(e)}")
+    raise e  # Re-raise the exception to fail startup if database isn't available
 
 app = FastAPI()
 
 @app.on_event("startup")
 async def startup():
-    logger.info("Connecting to database...")
-    await database.connect()
-    logger.info("Database connection established")
+    try:
+        logger.info("Connecting to database...")
+        await database.connect()
+        logger.info("Database connection established")
+        
+        # Verify tables exist by querying them
+        query = "SELECT * FROM coffee_roasts LIMIT 1"
+        result = await database.fetch_one(query)
+        logger.info(f"Test query result: {result}")
+    except Exception as e:
+        logger.error(f"Startup error: {str(e)}")
+        raise e  # Fail startup if database isn't working
 
 @app.on_event("shutdown")
 async def shutdown():
-    logger.info("Disconnecting from database...")
     await database.disconnect()
     logger.info("Database disconnected")
 
