@@ -212,138 +212,189 @@ elif st.session_state.current_page == "Roast History":
     roasts = api_call('/roasts/')
     
     if roasts:
-        # No need to convert - already in dictionary format
+        # Create DataFrame
         df = pd.DataFrame(roasts)
+        
+        # Convert date strings to proper datetime format
+        try:
+            df['date'] = pd.to_datetime(df['date'])
+        except:
+            st.warning("Error converting dates. Displaying raw data.")
         
         # Add filters
         st.subheader("Filters")
         col1, col2 = st.columns(2)
         with col1:
-            coffee_filter = st.multiselect(
-                "Filter by Coffee Name",
-                options=sorted(df['coffee_name'].unique())
-            )
+            if 'coffee_name' in df.columns:
+                coffee_options = sorted(df['coffee_name'].unique())
+                if coffee_options:
+                    coffee_filter = st.multiselect(
+                        "Filter by Coffee Name",
+                        options=coffee_options
+                    )
+                else:
+                    st.info("No coffee names available to filter.")
+                    coffee_filter = []
+            else:
+                st.info("Coffee name column not found.")
+                coffee_filter = []
+                
         with col2:
-            min_date = df['date'].min()
-            max_date = df['date'].max()
-            date_range = st.date_input(
-                "Date Range",
-                value=(min_date, max_date) if min_date and max_date else None
-            )
-        
+            if 'date' in df.columns:
+                try:
+                    min_date = df['date'].min().date() if not pd.isna(df['date'].min()) else datetime.now().date()
+                    max_date = df['date'].max().date() if not pd.isna(df['date'].max()) else datetime.now().date()
+                    date_range = st.date_input(
+                        "Date Range",
+                        value=(min_date, max_date)
+                    )
+                except:
+                    st.warning("Error with date picker. Using all dates.")
+                    date_range = None
+            else:
+                st.info("Date column not found.")
+                date_range = None
+                
         # Apply filters
-        if coffee_filter:
+        if coffee_filter and 'coffee_name' in df.columns:
             df = df[df['coffee_name'].isin(coffee_filter)]
-        if date_range:
-            df = df[
-                (df['date'] >= date_range[0]) & 
-                (df['date'] <= date_range[1])
-            ]
-        
+            
+        if date_range and 'date' in df.columns and len(date_range) == 2:
+            try:
+                start_date = pd.Timestamp(date_range[0])
+                end_date = pd.Timestamp(date_range[1])
+                df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
+            except Exception as e:
+                st.error(f"Error filtering by date: {e}")
+                
         # Display data
         st.subheader("Roast Records")
-        st.dataframe(
-            df.sort_values('date', ascending=False),
-            hide_index=True,
-            column_config={
-                'roast_id': None,  # Hide roast_id column
-                'date': st.column_config.DateColumn('Date'),
-                'coffee_name': 'Coffee Name',
-                'agtron_whole': 'Agtron (Whole)',
-                'agtron_ground': 'Agtron (Ground)',
-                'drop_temp': 'Drop Temp (°F)',
-                'development_time': 'Dev Time (min)',
-                'total_time': 'Total Time (min)',
-                'dtr_ratio': 'DTR Ratio',
-                'notes': 'Notes'
-            }
-        )
-        
-        # Add download button
-        csv = df.to_csv(index=False)
-        st.download_button(
-            label="📥 Download Roast History",
-            data=csv,
-            file_name="coffee_roast_history.csv",
-            mime="text/csv"
-        )
+        if not df.empty:
+            try:
+                st.dataframe(
+                    df.sort_values('date', ascending=False) if 'date' in df.columns else df,
+                    hide_index=True
+                )
+                
+                # Add download button
+                csv = df.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download Roast History",
+                    data=csv,
+                    file_name="coffee_roast_history.csv",
+                    mime="text/csv"
+                )
+            except Exception as e:
+                st.error(f"Error displaying data: {e}")
+                st.write("Raw data:")
+                st.write(df)
+        else:
+            st.info("No records to display after filtering.")
     else:
         st.info("No roast records found.")
 
 elif st.session_state.current_page == "Cupping History":
     st.header("📊 Cupping History")
     
-    # Get cupping scores
+    # Get cupping scores with detailed error handling
     scores = api_call('/scores/')
     
     if scores:
-        # No need to convert - already in dictionary format
-        df = pd.DataFrame(scores)
-        
-        # Get roast information to show coffee names
-        roasts = api_call('/roasts/')
-        if roasts:
-            roast_df = pd.DataFrame(roasts)
-            roast_lookup = dict(zip(roast_df['roast_id'], roast_df['coffee_name']))
-            df['coffee_name'] = df['roast_id'].map(roast_lookup)
-        
-        # Add filters
-        st.subheader("Filters")
-        col1, col2 = st.columns(2)
-        with col1:
-            coffee_filter = st.multiselect(
-                "Filter by Coffee Name",
-                options=sorted(df['coffee_name'].unique())
-            )
-        with col2:
-            min_date = df['date'].min()
-            max_date = df['date'].max()
-            date_range = st.date_input(
-                "Date Range",
-                value=(min_date, max_date) if min_date and max_date else None
-            )
-        
-        # Apply filters
-        if coffee_filter:
-            df = df[df['coffee_name'].isin(coffee_filter)]
-        if date_range:
-            df = df[
-                (df['date'] >= date_range[0]) & 
-                (df['date'] <= date_range[1])
-            ]
-        
-        # Display data
-        st.subheader("Cupping Scores")
-        st.dataframe(
-            df.sort_values('date', ascending=False),
-            hide_index=True,
-            column_config={
-                'score_id': None,  # Hide score_id column
-                'roast_id': None,  # Hide roast_id column
-                'date': st.column_config.DateColumn('Date'),
-                'coffee_name': 'Coffee Name',
-                'fragrance_aroma': st.column_config.NumberColumn('Fragrance/Aroma', format="%.2f"),
-                'flavor': st.column_config.NumberColumn('Flavor', format="%.2f"),
-                'aftertaste': st.column_config.NumberColumn('Aftertaste', format="%.2f"),
-                'acidity': st.column_config.NumberColumn('Acidity', format="%.2f"),
-                'body': st.column_config.NumberColumn('Body', format="%.2f"),
-                'uniformity': st.column_config.NumberColumn('Uniformity', format="%.2f"),
-                'clean_cup': st.column_config.NumberColumn('Clean Cup', format="%.2f"),
-                'sweetness': st.column_config.NumberColumn('Sweetness', format="%.2f"),
-                'overall': st.column_config.NumberColumn('Overall', format="%.2f"),
-                'defects': 'Defects',
-                'total_score': st.column_config.NumberColumn('Total Score', format="%.2f"),
-                'notes': 'Notes'
-            }
-        )
-        
-        # Add download button
-        csv = df.to_csv(index=False)
-        st.download_button(
-            label="📥 Download Cupping History",
-            data=csv,
-            file_name="coffee_cupping_history.csv",
-            mime="text/csv"
-        )
+        # Create DataFrame with robust error handling
+        try:
+            df = pd.DataFrame(scores)
+            
+            # Convert date strings to proper datetime format
+            if 'date' in df.columns:
+                try:
+                    df['date'] = pd.to_datetime(df['date'])
+                except:
+                    st.warning("Error converting dates in scores. Using raw dates.")
+            
+            # Get roast information to show coffee names
+            roasts = api_call('/roasts/')
+            if roasts:
+                try:
+                    roast_df = pd.DataFrame(roasts)
+                    if 'roast_id' in roast_df.columns and 'coffee_name' in roast_df.columns:
+                        roast_lookup = dict(zip(roast_df['roast_id'], roast_df['coffee_name']))
+                        if 'roast_id' in df.columns:
+                            df['coffee_name'] = df['roast_id'].map(roast_lookup)
+                except Exception as e:
+                    st.error(f"Error linking roasts to scores: {e}")
+            
+            # Add filters with robust error handling
+            st.subheader("Filters")
+            col1, col2 = st.columns(2)
+            with col1:
+                if 'coffee_name' in df.columns:
+                    coffee_options = sorted(df['coffee_name'].dropna().unique())
+                    if coffee_options:
+                        coffee_filter = st.multiselect(
+                            "Filter by Coffee Name",
+                            options=coffee_options
+                        )
+                    else:
+                        st.info("No coffee names available to filter.")
+                        coffee_filter = []
+                else:
+                    st.info("Coffee name column not found.")
+                    coffee_filter = []
+                    
+            with col2:
+                if 'date' in df.columns:
+                    try:
+                        min_date = df['date'].min().date() if not pd.isna(df['date'].min()) else datetime.now().date()
+                        max_date = df['date'].max().date() if not pd.isna(df['date'].max()) else datetime.now().date()
+                        date_range = st.date_input(
+                            "Date Range",
+                            value=(min_date, max_date)
+                        )
+                    except:
+                        st.warning("Error with date picker. Using all dates.")
+                        date_range = None
+                else:
+                    st.info("Date column not found.")
+                    date_range = None
+            
+            # Apply filters with error handling
+            if coffee_filter and 'coffee_name' in df.columns:
+                df = df[df['coffee_name'].isin(coffee_filter)]
+                
+            if date_range and 'date' in df.columns and len(date_range) == 2:
+                try:
+                    start_date = pd.Timestamp(date_range[0])
+                    end_date = pd.Timestamp(date_range[1])
+                    df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
+                except Exception as e:
+                    st.error(f"Error filtering by date: {e}")
+            
+            # Display data
+            st.subheader("Cupping Scores")
+            if not df.empty:
+                try:
+                    st.dataframe(
+                        df.sort_values('date', ascending=False) if 'date' in df.columns else df,
+                        hide_index=True
+                    )
+                    
+                    # Add download button
+                    csv = df.to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download Cupping History",
+                        data=csv,
+                        file_name="coffee_cupping_history.csv",
+                        mime="text/csv"
+                    )
+                except Exception as e:
+                    st.error(f"Error displaying data: {e}")
+                    st.write("Raw data:")
+                    st.write(df)
+            else:
+                st.info("No records to display after filtering.")
+        except Exception as e:
+            st.error(f"Error processing scores data: {e}")
+            st.write("Raw scores data:")
+            st.write(scores)
     else:
         st.info("No cupping records found.") 
