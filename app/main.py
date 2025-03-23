@@ -1,130 +1,115 @@
-import os
 from fastapi import FastAPI, HTTPException
 from .models import CoffeeRoast, CoffeeScore
-import databases
-import sqlalchemy
+import sqlite3
 import uuid
-import aiosqlite
-import logging
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Use PostgreSQL URL from Railway
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./coffee_scores.db")
-
-# Fix PostgreSQL URL format
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
-# Create database connection
-database = databases.Database(DATABASE_URL)
-metadata = sqlalchemy.MetaData()
-
-# Define tables
-coffee_roasts = sqlalchemy.Table(
-    "coffee_roasts",
-    metadata,
-    sqlalchemy.Column("roast_id", sqlalchemy.String, primary_key=True),
-    sqlalchemy.Column("date", sqlalchemy.String),
-    sqlalchemy.Column("coffee_name", sqlalchemy.String),
-    sqlalchemy.Column("agtron_whole", sqlalchemy.Integer),
-    sqlalchemy.Column("agtron_ground", sqlalchemy.Integer),
-    sqlalchemy.Column("drop_temp", sqlalchemy.Float),
-    sqlalchemy.Column("development_time", sqlalchemy.Float),
-    sqlalchemy.Column("total_time", sqlalchemy.Float),
-    sqlalchemy.Column("dtr_ratio", sqlalchemy.Float),
-    sqlalchemy.Column("notes", sqlalchemy.String),
-)
-
-coffee_scores = sqlalchemy.Table(
-    "coffee_scores",
-    metadata,
-    sqlalchemy.Column("score_id", sqlalchemy.String, primary_key=True),
-    sqlalchemy.Column("roast_id", sqlalchemy.String),
-    sqlalchemy.Column("date", sqlalchemy.String),
-    sqlalchemy.Column("fragrance_aroma", sqlalchemy.Float),
-    sqlalchemy.Column("flavor", sqlalchemy.Float),
-    sqlalchemy.Column("aftertaste", sqlalchemy.Float),
-    sqlalchemy.Column("acidity", sqlalchemy.Float),
-    sqlalchemy.Column("body", sqlalchemy.Float),
-    sqlalchemy.Column("uniformity", sqlalchemy.Float),
-    sqlalchemy.Column("clean_cup", sqlalchemy.Float),
-    sqlalchemy.Column("sweetness", sqlalchemy.Float),
-    sqlalchemy.Column("overall", sqlalchemy.Float),
-    sqlalchemy.Column("defects", sqlalchemy.String),
-    sqlalchemy.Column("total_score", sqlalchemy.Float),
-    sqlalchemy.Column("notes", sqlalchemy.String),
-)
-
-# Create tables
-engine = sqlalchemy.create_engine(DATABASE_URL)
-metadata.create_all(engine)
 
 app = FastAPI()
 
+# Initialize SQLite database
+def init_db():
+    conn = sqlite3.connect('coffee_scores.db')
+    c = conn.cursor()
+    
+    # Create tables
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS coffee_roasts (
+            roast_id TEXT PRIMARY KEY,
+            date TEXT,
+            coffee_name TEXT,
+            agtron_whole INTEGER,
+            agtron_ground INTEGER,
+            drop_temp REAL,
+            development_time REAL,
+            total_time REAL,
+            dtr_ratio REAL,
+            notes TEXT
+        )
+    ''')
+    
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS coffee_scores (
+            score_id TEXT PRIMARY KEY,
+            roast_id TEXT,
+            date TEXT,
+            fragrance_aroma REAL,
+            flavor REAL,
+            aftertaste REAL,
+            acidity REAL,
+            body REAL,
+            uniformity REAL,
+            clean_cup REAL,
+            sweetness REAL,
+            overall REAL,
+            defects INTEGER,
+            total_score REAL,
+            notes TEXT,
+            FOREIGN KEY(roast_id) REFERENCES coffee_roasts(roast_id)
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
+
+# Initialize database on startup
+init_db()
+
 @app.get("/health")
-async def health_check():
+def health_check():
     try:
-        # Test database connection
-        await database.fetch_one("SELECT 1")
-        return {"status": "healthy", "database": "connected"}
+        conn = sqlite3.connect('coffee_scores.db')
+        c = conn.cursor()
+        c.execute("SELECT 1")
+        conn.close()
+        return {"status": "healthy"}
     except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        return {"status": "unhealthy", "error": str(e)}
-
-@app.on_event("startup")
-async def startup():
-    logger.info("Starting up application...")
-    logger.info(f"Using DATABASE_URL: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'sqlite'}")
-    try:
-        await database.connect()
-        logger.info("Database connection established")
-        
-        # Create tables
-        engine = sqlalchemy.create_engine(DATABASE_URL)
-        metadata.create_all(engine)
-        logger.info("Database tables created successfully")
-    except Exception as e:
-        logger.error(f"Startup error: {str(e)}")
-        raise
-
-@app.on_event("shutdown")
-async def shutdown():
-    await database.disconnect()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/roasts/")
-async def create_roast(roast: CoffeeRoast):
-    query = coffee_roasts.insert().values(**roast.dict())
-    await database.execute(query)
-    return {"message": "Roast saved successfully"}
+def create_roast(roast: CoffeeRoast):
+    conn = sqlite3.connect('coffee_scores.db')
+    c = conn.cursor()
+    
+    roast_dict = roast.dict()
+    roast_dict['roast_id'] = str(uuid.uuid4())
+    
+    c.execute('''
+        INSERT INTO coffee_roasts 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', tuple(roast_dict.values()))
+    
+    conn.commit()
+    conn.close()
+    return {"roast_id": roast_dict['roast_id']}
 
 @app.get("/roasts/")
-async def get_roasts():
-    query = coffee_roasts.select()
-    return await database.fetch_all(query)
-
-@app.get("/roasts/{roast_id}")
-async def get_roast(roast_id: str):
-    query = coffee_roasts.select().where(coffee_roasts.c.roast_id == roast_id)
-    roast = await database.fetch_one(query)
-    if roast:
-        return roast
-    else:
-        raise HTTPException(status_code=404, detail="Roast not found")
+def get_roasts():
+    conn = sqlite3.connect('coffee_scores.db')
+    c = conn.cursor()
+    roasts = c.execute("SELECT * FROM coffee_roasts").fetchall()
+    conn.close()
+    return roasts
 
 @app.post("/scores/")
-async def create_score(score: CoffeeScore):
-    query = coffee_scores.insert().values(**score.dict())
-    await database.execute(query)
-    return {"message": "Score saved successfully"}
+def create_score(score: CoffeeScore):
+    conn = sqlite3.connect('coffee_scores.db')
+    c = conn.cursor()
+    
+    score_dict = score.dict()
+    score_dict['score_id'] = str(uuid.uuid4())
+    
+    c.execute('''
+        INSERT INTO coffee_scores 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', tuple(score_dict.values()))
+    
+    conn.commit()
+    conn.close()
+    return {"score_id": score_dict['score_id']}
 
 @app.get("/scores/")
-async def get_scores():
-    query = coffee_scores.select()
-    return await database.fetch_all(query)
-
-@app.get("/")
-async def root():
-    return {"status": "ok"} 
+def get_scores():
+    conn = sqlite3.connect('coffee_scores.db')
+    c = conn.cursor()
+    scores = c.execute("SELECT * FROM coffee_scores").fetchall()
+    conn.close()
+    return scores 
