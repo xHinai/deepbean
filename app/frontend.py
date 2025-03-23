@@ -5,46 +5,72 @@ import uuid
 import os
 import json
 import pandas as pd
-import time
 
-# Update this line at the top of your file
+# Set page title
+st.set_page_config(page_title="Coffee Roasting & Cupping App", page_icon="☕")
+
+# Update this at the top of your frontend.py
 BACKEND_URL = os.getenv('BACKEND_URL', 'http://localhost:8080')
 
-# Sidebar navigation
-st.sidebar.title("☕ Navigation")
-st.sidebar.markdown("---")
+# Add error handling for API calls
+def api_call(endpoint, method='get', data=None):
+    url = f"{BACKEND_URL}{endpoint}"
+    try:
+        st.write(f"Calling API: {url}")  # Debug info
+        if method == 'get':
+            response = requests.get(url)
+        elif method == 'post':
+            response = requests.post(url, json=data)
+        
+        # Show response status and content for debugging
+        st.write(f"Response status: {response.status_code}")
+        if response.content:
+            st.write(f"Response preview: {response.text[:100]}...")  # Show first 100 chars
+        else:
+            st.write("Empty response content")
+        
+        # Handle the response
+        if response.status_code == 200:
+            try:
+                return response.json()
+            except json.JSONDecodeError as e:
+                st.error(f"Invalid JSON response: {e}")
+                st.error(f"Response content: {response.text}")
+                return None
+        else:
+            st.error(f"Error response: {response.status_code}")
+            st.error(f"Response content: {response.text}")
+            return None
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error connecting to backend: {BACKEND_URL}")
+        st.error(f"Error details: {str(e)}")
+        return None
 
-# Home button at the top of sidebar
-home_button = st.sidebar.button("🏠 Home")
-st.sidebar.markdown("---")
-roast_button = st.sidebar.button("🔥 Record Roast")
-score_button = st.sidebar.button("📋 Score Coffee")
-roast_history_button = st.sidebar.button("📚 Roast History")
-cupping_history_button = st.sidebar.button("📊 Cupping History")
+# Title
+st.title("☕ Coffee Roasting & Cupping App")
 
 # Initialize session state if it doesn't exist
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Home"
 
+# Sidebar navigation
+home_button = st.sidebar.button("🏠 Home")
+roast_button = st.sidebar.button("🔥 Record Roast")
+score_button = st.sidebar.button("📋 Score Coffee")
+roast_history_button = st.sidebar.button("📚 Roast History")
+cupping_history_button = st.sidebar.button("📊 Cupping History")
+
 # Update current page based on button clicks
 if home_button:
     st.session_state.current_page = "Home"
-    st.rerun()
 if roast_button:
     st.session_state.current_page = "Record Roast"
-    st.rerun()
 if score_button:
     st.session_state.current_page = "Score Coffee"
-    st.rerun()
 if roast_history_button:
     st.session_state.current_page = "Roast History"
-    st.rerun()
 if cupping_history_button:
     st.session_state.current_page = "Cupping History"
-    st.rerun()
-
-# Main content area
-st.title("☕ Blank Roasting & Cupping App")
 
 # Display content based on current page
 if st.session_state.current_page == "Home":
@@ -104,14 +130,9 @@ elif st.session_state.current_page == "Record Roast":
                 "notes": notes
             }
             
-            response = requests.post(f"{BACKEND_URL}/roasts/", json=data)
-            if response.status_code == 200:
+            result = api_call("/roasts/", method="post", data=data)
+            if result:
                 st.success("✅ Roast recorded successfully!")
-
-# Move the Return to Home button outside the form
-if st.button("🏠 Return to Home"):
-    st.session_state.current_page = "Home"
-    st.rerun()
 
 elif st.session_state.current_page == "Score Coffee":
     st.header("📋 Coffee Cupping Score Sheet")
@@ -150,8 +171,7 @@ elif st.session_state.current_page == "Score Coffee":
                 defects = st.number_input("❌ Defects", 0, 100, 0)
                 notes = st.text_area("📝 Cupping Notes")
 
-                submit_button = st.form_submit_button("💾 Submit Score")
-                if submit_button:
+                if st.form_submit_button("💾 Submit Score"):
                     total_score = (
                         fragrance_aroma + flavor + aftertaste + acidity + 
                         body + uniformity + clean_cup + sweetness + 
@@ -176,11 +196,9 @@ elif st.session_state.current_page == "Score Coffee":
                         "notes": notes
                     }
                     
-                    response = requests.post(f"{BACKEND_URL}/scores/", json=data)
-                    if response.status_code == 200:
+                    result = api_call("/scores/", method="post", data=data)
+                    if result:
                         st.success(f"✅ Score saved successfully! Total Score: {total_score:.2f}")
-                    else:
-                        st.error("Failed to save score. Please try again.")
     else:
         st.warning("No roasts available to score. Please record a roast first.")
 
@@ -189,6 +207,7 @@ elif st.session_state.current_page == "Roast History":
     
     # Get roast data
     roasts = api_call('/roasts/')
+    
     if roasts:
         # Convert to DataFrame for better display
         df = pd.DataFrame(roasts, columns=[
@@ -260,6 +279,7 @@ elif st.session_state.current_page == "Cupping History":
     
     # Get cupping scores
     scores = api_call('/scores/')
+    
     if scores:
         # Convert to DataFrame
         df = pd.DataFrame(scores, columns=[
@@ -275,7 +295,12 @@ elif st.session_state.current_page == "Cupping History":
         # Get roast information to show coffee names
         roasts = api_call('/roasts/')
         if roasts:
-            roast_lookup = dict(zip(roasts['roast_id'], roasts['coffee_name']))
+            roast_df = pd.DataFrame(roasts, columns=[
+                'roast_id', 'date', 'coffee_name', 'agtron_whole',
+                'agtron_ground', 'drop_temp', 'development_time',
+                'total_time', 'dtr_ratio', 'notes'
+            ])
+            roast_lookup = dict(zip(roast_df['roast_id'], roast_df['coffee_name']))
             df['coffee_name'] = df['roast_id'].map(roast_lookup)
         
         # Add filters
@@ -305,9 +330,8 @@ elif st.session_state.current_page == "Cupping History":
         
         # Display data
         st.subheader("Cupping Scores")
-        display_df = df.copy()
         st.dataframe(
-            display_df.sort_values('date', ascending=False),
+            df.sort_values('date', ascending=False),
             hide_index=True,
             column_config={
                 'score_id': None,  # Hide score_id column
@@ -338,30 +362,4 @@ elif st.session_state.current_page == "Cupping History":
             mime="text/csv"
         )
     else:
-        st.info("No cupping records found.")
-
-# Add error handling for API calls
-def api_call(endpoint, method='get', data=None):
-    url = f"{BACKEND_URL}{endpoint}"
-    try:
-        st.write(f"Calling API: {url}")  # Debug info
-        if method == 'get':
-            response = requests.get(url)
-        elif method == 'post':
-            response = requests.post(url, json=data)
-        
-        response.raise_for_status()  # Raise an exception for bad status codes
-        
-        # Debug information
-        st.write(f"Response status: {response.status_code}")
-        st.write(f"Response content: {response.text[:100]}...")  # Show first 100 chars
-        
-        try:
-            return response.json()
-        except json.JSONDecodeError:
-            st.error(f"Invalid JSON response: {response.text}")
-            return None
-    except requests.exceptions.RequestException as e:
-        st.error(f"Error connecting to backend: {BACKEND_URL}")
-        st.error(f"Error details: {str(e)}")
-        return None 
+        st.info("No cupping records found.") 
