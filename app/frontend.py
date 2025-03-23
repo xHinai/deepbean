@@ -43,7 +43,7 @@ if cupping_history_button:
     st.rerun()
 
 # Main content area
-st.title("☕ Coffee Roasting & Cupping App")
+st.title("☕ Blank Roasting & Cupping App")
 
 # Display content based on current page
 if st.session_state.current_page == "Home":
