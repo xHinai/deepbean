@@ -2,12 +2,13 @@ import streamlit as st
 import requests
 from datetime import datetime
 import uuid
+import os
+import json
 import pandas as pd
 import time
-import os
 
 # Update this line at the top of your file
-BACKEND_URL = os.getenv('BACKEND_URL', 'http://localhost:8000')
+BACKEND_URL = os.getenv('BACKEND_URL', 'http://localhost:8080')
 
 # Sidebar navigation
 st.sidebar.title("☕ Navigation")
@@ -116,8 +117,7 @@ elif st.session_state.current_page == "Score Coffee":
     st.header("📋 Coffee Cupping Score Sheet")
     
     # Get available roasts
-    response = requests.get(f"{BACKEND_URL}/roasts/")
-    roasts = response.json()
+    roasts = api_call('/roasts/')
     
     if roasts:
         # Create selection box for roasts
@@ -188,167 +188,180 @@ elif st.session_state.current_page == "Roast History":
     st.header("📚 Roast History")
     
     # Get roast data
-    response = requests.get(f"{BACKEND_URL}/roasts/")
-    if response.status_code == 200:
-        roasts = response.json()
-        if roasts:
-            # Convert to DataFrame for better display
-            df = pd.DataFrame(roasts, columns=[
-                'roast_id', 'date', 'coffee_name', 'agtron_whole', 
-                'agtron_ground', 'drop_temp', 'development_time', 
-                'total_time', 'dtr_ratio', 'notes'
-            ])
-            
-            # Convert date strings to datetime
-            df['date'] = pd.to_datetime(df['date']).dt.date
-            
-            # Add filters
-            st.subheader("Filters")
-            col1, col2 = st.columns(2)
-            with col1:
-                coffee_filter = st.multiselect(
-                    "Filter by Coffee Name",
-                    options=sorted(df['coffee_name'].unique())
-                )
-            with col2:
-                min_date = df['date'].min()
-                max_date = df['date'].max()
-                date_range = st.date_input(
-                    "Date Range",
-                    value=(min_date, max_date) if min_date and max_date else None
-                )
-            
-            # Apply filters
-            if coffee_filter:
-                df = df[df['coffee_name'].isin(coffee_filter)]
-            if date_range:
-                df = df[
-                    (df['date'] >= date_range[0]) & 
-                    (df['date'] <= date_range[1])
-                ]
-            
-            # Display data
-            st.subheader("Roast Records")
-            st.dataframe(
-                df.sort_values('date', ascending=False),
-                hide_index=True,
-                column_config={
-                    'roast_id': None,  # Hide roast_id column
-                    'date': st.column_config.DateColumn('Date'),
-                    'coffee_name': 'Coffee Name',
-                    'agtron_whole': 'Agtron (Whole)',
-                    'agtron_ground': 'Agtron (Ground)',
-                    'drop_temp': 'Drop Temp (°F)',
-                    'development_time': 'Dev Time (min)',
-                    'total_time': 'Total Time (min)',
-                    'dtr_ratio': 'DTR Ratio',
-                    'notes': 'Notes'
-                }
+    roasts = api_call('/roasts/')
+    if roasts:
+        # Convert to DataFrame for better display
+        df = pd.DataFrame(roasts, columns=[
+            'roast_id', 'date', 'coffee_name', 'agtron_whole', 
+            'agtron_ground', 'drop_temp', 'development_time', 
+            'total_time', 'dtr_ratio', 'notes'
+        ])
+        
+        # Convert date strings to datetime
+        df['date'] = pd.to_datetime(df['date']).dt.date
+        
+        # Add filters
+        st.subheader("Filters")
+        col1, col2 = st.columns(2)
+        with col1:
+            coffee_filter = st.multiselect(
+                "Filter by Coffee Name",
+                options=sorted(df['coffee_name'].unique())
             )
-            
-            # Add download button
-            csv = df.to_csv(index=False)
-            st.download_button(
-                label="📥 Download Roast History",
-                data=csv,
-                file_name="coffee_roast_history.csv",
-                mime="text/csv"
+        with col2:
+            min_date = df['date'].min()
+            max_date = df['date'].max()
+            date_range = st.date_input(
+                "Date Range",
+                value=(min_date, max_date) if min_date and max_date else None
             )
-        else:
-            st.info("No roast records found.")
+        
+        # Apply filters
+        if coffee_filter:
+            df = df[df['coffee_name'].isin(coffee_filter)]
+        if date_range:
+            df = df[
+                (df['date'] >= date_range[0]) & 
+                (df['date'] <= date_range[1])
+            ]
+        
+        # Display data
+        st.subheader("Roast Records")
+        st.dataframe(
+            df.sort_values('date', ascending=False),
+            hide_index=True,
+            column_config={
+                'roast_id': None,  # Hide roast_id column
+                'date': st.column_config.DateColumn('Date'),
+                'coffee_name': 'Coffee Name',
+                'agtron_whole': 'Agtron (Whole)',
+                'agtron_ground': 'Agtron (Ground)',
+                'drop_temp': 'Drop Temp (°F)',
+                'development_time': 'Dev Time (min)',
+                'total_time': 'Total Time (min)',
+                'dtr_ratio': 'DTR Ratio',
+                'notes': 'Notes'
+            }
+        )
+        
+        # Add download button
+        csv = df.to_csv(index=False)
+        st.download_button(
+            label="📥 Download Roast History",
+            data=csv,
+            file_name="coffee_roast_history.csv",
+            mime="text/csv"
+        )
     else:
-        st.error("Failed to fetch roast history.")
+        st.info("No roast records found.")
 
 elif st.session_state.current_page == "Cupping History":
     st.header("📊 Cupping History")
     
     # Get cupping scores
-    response = requests.get(f"{BACKEND_URL}/scores/")
-    if response.status_code == 200:
-        scores = response.json()
-        if scores:
-            # Convert to DataFrame
-            df = pd.DataFrame(scores, columns=[
-                'score_id', 'roast_id', 'date', 'fragrance_aroma',
-                'flavor', 'aftertaste', 'acidity', 'body', 'uniformity',
-                'clean_cup', 'sweetness', 'overall', 'defects',
-                'total_score', 'notes'
-            ])
-            
-            # Convert date strings to datetime
-            df['date'] = pd.to_datetime(df['date']).dt.date
-            
-            # Get roast information to show coffee names
-            roast_response = requests.get(f"{BACKEND_URL}/roasts/")
-            if roast_response.status_code == 200:
-                roasts = pd.DataFrame(roast_response.json(), columns=[
-                    'roast_id', 'date', 'coffee_name', 'agtron_whole',
-                    'agtron_ground', 'drop_temp', 'development_time',
-                    'total_time', 'dtr_ratio', 'notes'
-                ])
-                roast_lookup = dict(zip(roasts['roast_id'], roasts['coffee_name']))
-                df['coffee_name'] = df['roast_id'].map(roast_lookup)
-            
-            # Add filters
-            st.subheader("Filters")
-            col1, col2 = st.columns(2)
-            with col1:
-                coffee_filter = st.multiselect(
-                    "Filter by Coffee Name",
-                    options=sorted(df['coffee_name'].unique())
-                )
-            with col2:
-                min_date = df['date'].min()
-                max_date = df['date'].max()
-                date_range = st.date_input(
-                    "Date Range",
-                    value=(min_date, max_date) if min_date and max_date else None
-                )
-            
-            # Apply filters
-            if coffee_filter:
-                df = df[df['coffee_name'].isin(coffee_filter)]
-            if date_range:
-                df = df[
-                    (df['date'] >= date_range[0]) & 
-                    (df['date'] <= date_range[1])
-                ]
-            
-            # Display data
-            st.subheader("Cupping Scores")
-            display_df = df.copy()
-            st.dataframe(
-                display_df.sort_values('date', ascending=False),
-                hide_index=True,
-                column_config={
-                    'score_id': None,  # Hide score_id column
-                    'roast_id': None,  # Hide roast_id column
-                    'date': st.column_config.DateColumn('Date'),
-                    'coffee_name': 'Coffee Name',
-                    'fragrance_aroma': st.column_config.NumberColumn('Fragrance/Aroma', format="%.2f"),
-                    'flavor': st.column_config.NumberColumn('Flavor', format="%.2f"),
-                    'aftertaste': st.column_config.NumberColumn('Aftertaste', format="%.2f"),
-                    'acidity': st.column_config.NumberColumn('Acidity', format="%.2f"),
-                    'body': st.column_config.NumberColumn('Body', format="%.2f"),
-                    'uniformity': st.column_config.NumberColumn('Uniformity', format="%.2f"),
-                    'clean_cup': st.column_config.NumberColumn('Clean Cup', format="%.2f"),
-                    'sweetness': st.column_config.NumberColumn('Sweetness', format="%.2f"),
-                    'overall': st.column_config.NumberColumn('Overall', format="%.2f"),
-                    'defects': 'Defects',
-                    'total_score': st.column_config.NumberColumn('Total Score', format="%.2f"),
-                    'notes': 'Notes'
-                }
+    scores = api_call('/scores/')
+    if scores:
+        # Convert to DataFrame
+        df = pd.DataFrame(scores, columns=[
+            'score_id', 'roast_id', 'date', 'fragrance_aroma',
+            'flavor', 'aftertaste', 'acidity', 'body', 'uniformity',
+            'clean_cup', 'sweetness', 'overall', 'defects',
+            'total_score', 'notes'
+        ])
+        
+        # Convert date strings to datetime
+        df['date'] = pd.to_datetime(df['date']).dt.date
+        
+        # Get roast information to show coffee names
+        roasts = api_call('/roasts/')
+        if roasts:
+            roast_lookup = dict(zip(roasts['roast_id'], roasts['coffee_name']))
+            df['coffee_name'] = df['roast_id'].map(roast_lookup)
+        
+        # Add filters
+        st.subheader("Filters")
+        col1, col2 = st.columns(2)
+        with col1:
+            coffee_filter = st.multiselect(
+                "Filter by Coffee Name",
+                options=sorted(df['coffee_name'].unique())
             )
-            
-            # Add download button
-            csv = df.to_csv(index=False)
-            st.download_button(
-                label="📥 Download Cupping History",
-                data=csv,
-                file_name="coffee_cupping_history.csv",
-                mime="text/csv"
+        with col2:
+            min_date = df['date'].min()
+            max_date = df['date'].max()
+            date_range = st.date_input(
+                "Date Range",
+                value=(min_date, max_date) if min_date and max_date else None
             )
-        else:
-            st.info("No cupping records found.")
+        
+        # Apply filters
+        if coffee_filter:
+            df = df[df['coffee_name'].isin(coffee_filter)]
+        if date_range:
+            df = df[
+                (df['date'] >= date_range[0]) & 
+                (df['date'] <= date_range[1])
+            ]
+        
+        # Display data
+        st.subheader("Cupping Scores")
+        display_df = df.copy()
+        st.dataframe(
+            display_df.sort_values('date', ascending=False),
+            hide_index=True,
+            column_config={
+                'score_id': None,  # Hide score_id column
+                'roast_id': None,  # Hide roast_id column
+                'date': st.column_config.DateColumn('Date'),
+                'coffee_name': 'Coffee Name',
+                'fragrance_aroma': st.column_config.NumberColumn('Fragrance/Aroma', format="%.2f"),
+                'flavor': st.column_config.NumberColumn('Flavor', format="%.2f"),
+                'aftertaste': st.column_config.NumberColumn('Aftertaste', format="%.2f"),
+                'acidity': st.column_config.NumberColumn('Acidity', format="%.2f"),
+                'body': st.column_config.NumberColumn('Body', format="%.2f"),
+                'uniformity': st.column_config.NumberColumn('Uniformity', format="%.2f"),
+                'clean_cup': st.column_config.NumberColumn('Clean Cup', format="%.2f"),
+                'sweetness': st.column_config.NumberColumn('Sweetness', format="%.2f"),
+                'overall': st.column_config.NumberColumn('Overall', format="%.2f"),
+                'defects': 'Defects',
+                'total_score': st.column_config.NumberColumn('Total Score', format="%.2f"),
+                'notes': 'Notes'
+            }
+        )
+        
+        # Add download button
+        csv = df.to_csv(index=False)
+        st.download_button(
+            label="📥 Download Cupping History",
+            data=csv,
+            file_name="coffee_cupping_history.csv",
+            mime="text/csv"
+        )
     else:
-        st.error("Failed to fetch cupping history.") 
+        st.info("No cupping records found.")
+
+# Add error handling for API calls
+def api_call(endpoint, method='get', data=None):
+    url = f"{BACKEND_URL}{endpoint}"
+    try:
+        st.write(f"Calling API: {url}")  # Debug info
+        if method == 'get':
+            response = requests.get(url)
+        elif method == 'post':
+            response = requests.post(url, json=data)
+        
+        response.raise_for_status()  # Raise an exception for bad status codes
+        
+        # Debug information
+        st.write(f"Response status: {response.status_code}")
+        st.write(f"Response content: {response.text[:100]}...")  # Show first 100 chars
+        
+        try:
+            return response.json()
+        except json.JSONDecodeError:
+            st.error(f"Invalid JSON response: {response.text}")
+            return None
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error connecting to backend: {BACKEND_URL}")
+        st.error(f"Error details: {str(e)}")
+        return None 
