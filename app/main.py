@@ -5,8 +5,10 @@ import databases
 import sqlalchemy
 import uuid
 
+app = FastAPI()
+
 # Use PostgreSQL URL from environment variable
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./coffee_scores.db")  # Fallback for local development
 
 # If using PostgreSQL, handle the URL format
 if DATABASE_URL.startswith("postgres://"):
@@ -52,11 +54,9 @@ coffee_scores = sqlalchemy.Table(
     sqlalchemy.Column("notes", sqlalchemy.String),
 )
 
-# Create the engine
+# Create engine and tables
 engine = sqlalchemy.create_engine(DATABASE_URL)
-metadata.create_all(engine)  # Create tables if they don't exist
-
-app = FastAPI()
+metadata.create_all(engine)
 
 @app.on_event("startup")
 async def startup():
@@ -69,28 +69,21 @@ async def shutdown():
 @app.get("/health")
 async def health_check():
     try:
+        # Test database connection
         query = "SELECT 1"
-        await database.execute(query)
-        return {"status": "healthy"}
+        result = await database.fetch_one(query)
+        return {"status": "healthy", "database": "connected"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/roasts/")
 async def create_roast(roast: CoffeeRoast):
-    query = coffee_roasts.insert().values(
-        roast_id=str(uuid.uuid4()),
-        date=roast.date,
-        coffee_name=roast.coffee_name,
-        agtron_whole=roast.agtron_whole,
-        agtron_ground=roast.agtron_ground,
-        drop_temp=roast.drop_temp,
-        development_time=roast.development_time,
-        total_time=roast.total_time,
-        dtr_ratio=roast.dtr_ratio,
-        notes=roast.notes
-    )
+    roast_dict = roast.dict()
+    roast_dict['roast_id'] = str(uuid.uuid4())
+    
+    query = coffee_roasts.insert().values(**roast_dict)
     await database.execute(query)
-    return {"message": "Roast created successfully"}
+    return {"roast_id": roast_dict['roast_id']}
 
 @app.get("/roasts/")
 async def get_roasts():
@@ -99,25 +92,12 @@ async def get_roasts():
 
 @app.post("/scores/")
 async def create_score(score: CoffeeScore):
-    query = coffee_scores.insert().values(
-        score_id=str(uuid.uuid4()),
-        roast_id=score.roast_id,
-        date=score.date,
-        fragrance_aroma=score.fragrance_aroma,
-        flavor=score.flavor,
-        aftertaste=score.aftertaste,
-        acidity=score.acidity,
-        body=score.body,
-        uniformity=score.uniformity,
-        clean_cup=score.clean_cup,
-        sweetness=score.sweetness,
-        overall=score.overall,
-        defects=score.defects,
-        total_score=score.total_score,
-        notes=score.notes
-    )
+    score_dict = score.dict()
+    score_dict['score_id'] = str(uuid.uuid4())
+    
+    query = coffee_scores.insert().values(**score_dict)
     await database.execute(query)
-    return {"message": "Score created successfully"}
+    return {"score_id": score_dict['score_id']}
 
 @app.get("/scores/")
 async def get_scores():
