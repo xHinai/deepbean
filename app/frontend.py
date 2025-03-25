@@ -45,24 +45,18 @@ st.title("☕ Coffee Roasting & Cupping App")
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Home"
 
-# Sidebar navigation
-home_button = st.sidebar.button("🏠 Home")
-roast_button = st.sidebar.button("🔥 Record Roast")
-score_button = st.sidebar.button("📋 Score Coffee")
-roast_history_button = st.sidebar.button("📚 Roast History")
-cupping_history_button = st.sidebar.button("📊 Cupping History")
-
-# Update current page based on button clicks
-if home_button:
-    st.session_state.current_page = "Home"
-if roast_button:
-    st.session_state.current_page = "Record Roast"
-if score_button:
-    st.session_state.current_page = "Score Coffee"
-if roast_history_button:
-    st.session_state.current_page = "Roast History"
-if cupping_history_button:
-    st.session_state.current_page = "Cupping History"
+# Sidebar for navigation
+with st.sidebar:
+    st.image("app/static/logo.png", width=100)
+    st.title("Coffee App")
+    
+    # Navigation buttons - make sure Green Beans is added AFTER Home and BEFORE Record Roast
+    st.button("🏠 Home", on_click=lambda: set_page("Home"))
+    st.button("🌱 Green Beans", on_click=lambda: set_page("Green Beans"))
+    st.button("🔥 Record Roast", on_click=lambda: set_page("New Roast"))
+    st.button("📋 Score Coffee", on_click=lambda: set_page("Score Coffee"))
+    st.button("📚 Roast History", on_click=lambda: set_page("Roast History"))
+    st.button("📊 Cupping History", on_click=lambda: set_page("Cupping History"))
 
 # Display content based on current page
 if st.session_state.current_page == "Home":
@@ -158,7 +152,7 @@ elif st.session_state.current_page == "Score Coffee":
                     col1, col2 = st.columns(2)
                     with col1:
                         fragrance_aroma = st.slider("👃 Fragrance/Aroma", 0.0, 10.0, 6.0, 0.25)
-                        flavor = st.slider("👅 Flavor", 0.0, 10.0, 6.0, 0.25)
+                        flavor = st.slider("�� Flavor", 0.0, 10.0, 6.0, 0.25)
                         aftertaste = st.slider("💭 Aftertaste", 0.0, 10.0, 6.0, 0.25)
                         acidity = st.slider("✨ Acidity", 0.0, 10.0, 6.0, 0.25)
                     
