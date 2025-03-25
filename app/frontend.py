@@ -210,6 +210,9 @@ elif st.session_state.current_page == "Roast History":
         # Create DataFrame
         df = pd.DataFrame(roasts)
         
+        # Add the temperature unit note WITHOUT checking drop_temp here
+        st.markdown("Temperature values are in **°C**")
+        
         # Convert date strings to proper datetime format
         try:
             df['date'] = pd.to_datetime(df['date'])
@@ -273,10 +276,6 @@ elif st.session_state.current_page == "Roast History":
                 file_name="coffee_roast_history.csv",
                 mime="text/csv"
             )
-            
-            # If you're doing any custom formatting of temperature values for display:
-            if 'drop_temp' in df.columns:
-                st.markdown(f"Temperature values are in **°C**")  # Add a note about the units
         else:
             st.info("No records to display.")
     else:
