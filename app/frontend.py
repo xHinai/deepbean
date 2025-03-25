@@ -210,14 +210,22 @@ elif st.session_state.current_page == "Roast History":
         # Create DataFrame
         df = pd.DataFrame(roasts)
         
-        # Add the temperature unit note WITHOUT checking drop_temp here
-        st.markdown("Temperature values are in **°C**")
+        # Reorder columns to put coffee_name first and drop the roast_id
+        if 'coffee_name' in df.columns:
+            # List all columns excluding roast_id, with coffee_name first
+            cols = ['coffee_name', 'date', 'agtron_whole', 'agtron_ground', 'drop_temp',
+                   'development_time', 'total_time', 'dtr_ratio', 'notes']
+            
+            # Keep only columns that exist in the dataframe
+            available_cols = [col for col in cols if col in df.columns]
+            
+            # Reorder dataframe
+            df = df[available_cols]
         
         # Convert date strings to proper datetime format
         try:
             df['date'] = pd.to_datetime(df['date'])
         except:
-            # Silently handle date conversion errors
             pass
         
         # Add filters
@@ -277,64 +285,64 @@ elif st.session_state.current_page == "Roast History":
                 mime="text/csv"
             )
         else:
-            st.info("No records to display.")
+            st.info("No records to display after filtering.")
     else:
         st.info("No roast records found.")
 
 elif st.session_state.current_page == "Cupping History":
     st.header("📊 Cupping History")
     
-    # Get cupping scores with detailed error handling
+    # Get cupping scores
     scores = api_call('/scores/')
     
     if scores:
-        # Create DataFrame with robust error handling
-        try:
-            df = pd.DataFrame(scores)
+        # Create DataFrame
+        df = pd.DataFrame(scores)
+        
+        # Get roast information to show coffee names
+        roasts = api_call('/roasts/')
+        if roasts:
+            roast_df = pd.DataFrame(roasts)
+            roast_lookup = dict(zip(roast_df['roast_id'], roast_df['coffee_name']))
+            df['coffee_name'] = df['roast_id'].map(roast_lookup)
+        
+        # Reorder columns to put coffee_name first and drop the IDs
+        if 'coffee_name' in df.columns:
+            # List all columns excluding score_id and roast_id, with coffee_name first
+            cols = ['coffee_name', 'date', 'fragrance_aroma', 'flavor', 'aftertaste', 'acidity', 
+                   'body', 'uniformity', 'clean_cup', 'sweetness', 'overall', 'defects', 
+                   'total_score', 'notes']
             
-            # Convert date strings to proper datetime format
+            # Keep only columns that exist in the dataframe
+            available_cols = [col for col in cols if col in df.columns]
+            
+            # Reorder dataframe
+            df = df[available_cols]
+        
+        # Add filters with robust error handling
+        st.subheader("Filters")
+        col1, col2 = st.columns(2)
+        with col1:
+            if 'coffee_name' in df.columns:
+                coffee_options = sorted(df['coffee_name'].dropna().unique())
+                coffee_filter = st.multiselect(
+                    "Filter by Coffee Name",
+                    options=coffee_options
+                )
+            else:
+                coffee_filter = []
+                
+        with col2:
             if 'date' in df.columns:
                 try:
-                    df['date'] = pd.to_datetime(df['date'])
-                except:
-                    pass  # Silently handle the error
-            
-            # Get roast information to show coffee names
-            roasts = api_call('/roasts/')
-            if roasts:
-                try:
-                    roast_df = pd.DataFrame(roasts)
-                    if 'roast_id' in roast_df.columns and 'coffee_name' in roast_df.columns:
-                        roast_lookup = dict(zip(roast_df['roast_id'], roast_df['coffee_name']))
-                        if 'roast_id' in df.columns:
-                            df['coffee_name'] = df['roast_id'].map(roast_lookup)
-                except Exception as e:
-                    pass  # Skip the error message for non-critical issues
-            
-            # Add filters with robust error handling
-            st.subheader("Filters")
-            col1, col2 = st.columns(2)
-            with col1:
-                if 'coffee_name' in df.columns:
-                    coffee_options = sorted(df['coffee_name'].dropna().unique())
-                    coffee_filter = st.multiselect(
-                        "Filter by Coffee Name",
-                        options=coffee_options
+                    min_date = df['date'].min().date() if not pd.isna(df['date'].min()) else datetime.now().date()
+                    max_date = df['date'].max().date() if not pd.isna(df['date'].max()) else datetime.now().date()
+                    date_range = st.date_input(
+                        "Date Range",
+                        value=(min_date, max_date)
                     )
-                else:
-                    coffee_filter = []
-                    
-            with col2:
-                if 'date' in df.columns:
-                    try:
-                        min_date = df['date'].min().date() if not pd.isna(df['date'].min()) else datetime.now().date()
-                        max_date = df['date'].max().date() if not pd.isna(df['date'].max()) else datetime.now().date()
-                        date_range = st.date_input(
-                            "Date Range",
-                            value=(min_date, max_date)
-                        )
-                    except:
-                        date_range = None
+                except:
+                    date_range = None
                 else:
                     date_range = None
             
