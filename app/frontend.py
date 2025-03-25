@@ -47,10 +47,9 @@ if 'current_page' not in st.session_state:
 
 # Sidebar for navigation
 with st.sidebar:
-    st.image("app/static/logo.png", width=100)
-    st.title("Coffee App")
+    st.title("☕ Coffee App")
     
-    # Navigation buttons - make sure Green Beans is added AFTER Home and BEFORE Record Roast
+    # Navigation buttons
     st.button("🏠 Home", on_click=lambda: set_page("Home"))
     st.button("🌱 Green Beans", on_click=lambda: set_page("Green Beans"))
     st.button("🔥 Record Roast", on_click=lambda: set_page("New Roast"))
@@ -152,7 +151,7 @@ elif st.session_state.current_page == "Score Coffee":
                     col1, col2 = st.columns(2)
                     with col1:
                         fragrance_aroma = st.slider("👃 Fragrance/Aroma", 0.0, 10.0, 6.0, 0.25)
-                        flavor = st.slider("�� Flavor", 0.0, 10.0, 6.0, 0.25)
+                        flavor = st.slider("🍯 Flavor", 0.0, 10.0, 6.0, 0.25)
                         aftertaste = st.slider("💭 Aftertaste", 0.0, 10.0, 6.0, 0.25)
                         acidity = st.slider("✨ Acidity", 0.0, 10.0, 6.0, 0.25)
                     
