@@ -1,6 +1,6 @@
 import os
 from fastapi import FastAPI, HTTPException
-from .models import CoffeeRoast, CoffeeScore
+from .models import CoffeeRoast, CoffeeScore, GreenBean
 import databases
 import sqlalchemy
 import uuid
@@ -30,6 +30,7 @@ coffee_roasts = sqlalchemy.Table(
     "coffee_roasts",
     metadata,
     sqlalchemy.Column("roast_id", sqlalchemy.String, primary_key=True),
+    sqlalchemy.Column("bean_id", sqlalchemy.String),
     sqlalchemy.Column("date", sqlalchemy.String),
     sqlalchemy.Column("coffee_name", sqlalchemy.String),
     sqlalchemy.Column("agtron_whole", sqlalchemy.Integer),
@@ -38,6 +39,7 @@ coffee_roasts = sqlalchemy.Table(
     sqlalchemy.Column("development_time", sqlalchemy.Float),
     sqlalchemy.Column("total_time", sqlalchemy.Float),
     sqlalchemy.Column("dtr_ratio", sqlalchemy.Float),
+    sqlalchemy.Column("amount_used_kg", sqlalchemy.Float),
     sqlalchemy.Column("notes", sqlalchemy.String),
 )
 
@@ -125,6 +127,14 @@ async def create_roast(roast: CoffeeRoast):
     
     query = coffee_roasts.insert().values(**roast_dict)
     await database.execute(query)
+    
+    # If there's a bean_id and amount_used_kg, update the green bean stock
+    if roast_dict.get('bean_id') and roast_dict.get('amount_used_kg'):
+        try:
+            await update_bean_stock(roast_dict['bean_id'], roast_dict['amount_used_kg'])
+        except Exception as e:
+            logger.error(f"Failed to update green bean stock: {str(e)}")
+    
     return {"roast_id": roast_dict['roast_id']}
 
 @app.get("/roasts/")
@@ -147,22 +157,30 @@ async def get_scores():
     return await database.fetch_all(query)
 
 @app.post("/green-beans/")
-async def create_green_bean(green_bean: dict):
-    bean_id = str(uuid.uuid4())
-    green_bean["bean_id"] = bean_id
+async def create_green_bean(green_bean: GreenBean):
+    green_bean_dict = green_bean.dict()
+    green_bean_dict['bean_id'] = str(uuid.uuid4())
     
     # Set current_stock equal to initial_stock at creation
-    if "initial_stock_kg" in green_bean:
-        green_bean["current_stock_kg"] = green_bean["initial_stock_kg"]
+    if green_bean_dict.get('initial_stock_kg'):
+        green_bean_dict['current_stock_kg'] = green_bean_dict['initial_stock_kg']
     
-    query = green_beans.insert().values(**green_bean)
+    query = green_beans.insert().values(**green_bean_dict)
     await database.execute(query)
-    return {"bean_id": bean_id}
+    return {"bean_id": green_bean_dict['bean_id']}
 
 @app.get("/green-beans/")
 async def get_green_beans():
     query = green_beans.select()
     return await database.fetch_all(query)
+
+@app.get("/green-beans/{bean_id}")
+async def get_green_bean(bean_id: str):
+    query = green_beans.select().where(green_beans.c.bean_id == bean_id)
+    result = await database.fetch_one(query)
+    if result:
+        return result
+    raise HTTPException(status_code=404, detail="Green bean not found")
 
 @app.put("/green-beans/{bean_id}/update-stock")
 async def update_bean_stock(bean_id: str, amount_used: float):

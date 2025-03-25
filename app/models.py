@@ -1,5 +1,4 @@
-from pydantic import BaseModel, Field
-from datetime import datetime
+from pydantic import BaseModel
 from typing import Optional
 
 class GreenBean(BaseModel):
@@ -18,7 +17,7 @@ class GreenBean(BaseModel):
 
 class CoffeeRoast(BaseModel):
     roast_id: Optional[str] = None
-    bean_id: Optional[str] = None  # Add this field to link to green beans
+    bean_id: Optional[str] = None  # Link to green beans
     date: Optional[str] = None
     coffee_name: str
     agtron_whole: Optional[int] = None
@@ -27,21 +26,22 @@ class CoffeeRoast(BaseModel):
     development_time: Optional[float] = None
     total_time: Optional[float] = None
     dtr_ratio: Optional[float] = None
+    amount_used_kg: Optional[float] = None  # Amount of green beans used
     notes: Optional[str] = None
 
 class CoffeeScore(BaseModel):
-    score_id: str
-    roast_id: str  # Foreign key to link to roast
-    date: datetime
-    fragrance_aroma: float
-    flavor: float
-    aftertaste: float
-    acidity: float
-    body: float
-    uniformity: float
-    clean_cup: float
-    sweetness: float
-    overall: float
-    defects: int
-    total_score: float
+    score_id: Optional[str] = None
+    roast_id: str
+    date: Optional[str] = None
+    fragrance_aroma: Optional[float] = None
+    flavor: Optional[float] = None
+    aftertaste: Optional[float] = None
+    acidity: Optional[float] = None
+    body: Optional[float] = None
+    uniformity: Optional[float] = None
+    clean_cup: Optional[float] = None
+    sweetness: Optional[float] = None
+    overall: Optional[float] = None
+    defects: Optional[int] = None
+    total_score: Optional[float] = None
     notes: Optional[str] = None 

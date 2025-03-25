@@ -21,6 +21,8 @@ def api_call(endpoint, method='get', data=None):
             response = requests.get(url)
         elif method == 'post':
             response = requests.post(url, json=data)
+        elif method == 'put':
+            response = requests.put(url, json=data)
         
         # Handle the response without debug messages
         if response.status_code == 200:
@@ -211,17 +213,35 @@ elif st.session_state.current_page == "Roast History":
         # Create DataFrame
         df = pd.DataFrame(roasts)
         
+        # Get green bean info if available
+        green_beans = api_call('/green-beans/')
+        if green_beans:
+            green_df = pd.DataFrame(green_beans)
+            if 'bean_id' in df.columns and 'bean_id' in green_df.columns:
+                # Create lookup dictionary for green bean info
+                bean_lookup = {bean['bean_id']: f"{bean['name']} ({bean['origin']})" 
+                              for bean in green_beans}
+                
+                # Add green bean info to roast dataframe
+                df['green_bean'] = df['bean_id'].map(bean_lookup)
+        
         # Reorder columns to put coffee_name first and drop the roast_id
         if 'coffee_name' in df.columns:
             # Define column order with coffee_name first
-            cols = ['coffee_name', 'date', 'agtron_whole', 'agtron_ground', 'drop_temp',
-                   'development_time', 'total_time', 'dtr_ratio', 'notes']
+            cols = ['coffee_name', 'green_bean', 'date', 'amount_used_kg', 'agtron_whole', 
+                   'agtron_ground', 'drop_temp', 'development_time', 'total_time', 'dtr_ratio', 'notes']
             
             # Keep only columns that exist in the dataframe
             available_cols = [col for col in cols if col in df.columns]
             
             # Reorder dataframe
             df = df[available_cols]
+        
+        # Convert date strings to proper datetime format
+        try:
+            df['date'] = pd.to_datetime(df['date'])
+        except:
+            pass
         
         # Add filters
         st.subheader("Filters")
@@ -241,8 +261,6 @@ elif st.session_state.current_page == "Roast History":
         with col2:
             if 'date' in df.columns:
                 try:
-                    # Convert to datetime first
-                    df['date'] = pd.to_datetime(df['date'])
                     min_date = df['date'].min().date()
                     max_date = df['date'].max().date()
                     
@@ -256,17 +274,16 @@ elif st.session_state.current_page == "Roast History":
                         start_date = pd.Timestamp(date_range[0])
                         end_date = pd.Timestamp(date_range[1])
                         df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
-                except Exception as e:
+                except:
                     pass
         
         # Display data
         st.subheader("Roast Records")
         if not df.empty:
-            # Use a wider layout for the table
             st.dataframe(
                 df.sort_values('date', ascending=False) if 'date' in df.columns else df,
                 hide_index=True,
-                use_container_width=True  # Make the table use the full width
+                use_container_width=True
             )
             
             # Add download button
@@ -301,7 +318,7 @@ elif st.session_state.current_page == "Cupping History":
         
         # Reorder columns to put coffee_name first and drop the IDs
         if 'coffee_name' in df.columns:
-            # Define the desired column order with coffee_name first
+            # List all columns excluding score_id and roast_id, with coffee_name first
             cols = ['coffee_name', 'date', 'fragrance_aroma', 'flavor', 'aftertaste', 'acidity', 
                    'body', 'uniformity', 'clean_cup', 'sweetness', 'overall', 'defects', 
                    'total_score', 'notes']
@@ -311,6 +328,12 @@ elif st.session_state.current_page == "Cupping History":
             
             # Reorder dataframe
             df = df[available_cols]
+        
+        # Convert date strings to proper datetime format
+        try:
+            df['date'] = pd.to_datetime(df['date'])
+        except:
+            pass
         
         # Add filters
         st.subheader("Filters")
@@ -330,8 +353,6 @@ elif st.session_state.current_page == "Cupping History":
         with col2:
             if 'date' in df.columns:
                 try:
-                    # Convert to datetime first
-                    df['date'] = pd.to_datetime(df['date'])
                     min_date = df['date'].min().date()
                     max_date = df['date'].max().date()
                     
@@ -345,17 +366,16 @@ elif st.session_state.current_page == "Cupping History":
                         start_date = pd.Timestamp(date_range[0])
                         end_date = pd.Timestamp(date_range[1])
                         df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
-                except Exception as e:
+                except:
                     pass
         
         # Display data
         st.subheader("Cupping Scores")
         if not df.empty:
-            # Use a wider layout for the table
             st.dataframe(
                 df.sort_values('date', ascending=False) if 'date' in df.columns else df,
                 hide_index=True,
-                use_container_width=True  # Make the table use the full width
+                use_container_width=True
             )
             
             # Add download button
@@ -636,7 +656,7 @@ elif st.session_state.current_page == "New Roast":
         submit_button = st.form_submit_button("📝 Save Roast")
         
         if submit_button:
-            if not selected_bean_id:
+            if not selected_bean_id and green_beans:
                 st.error("Please select green beans from inventory!")
             elif not coffee_name:
                 st.error("Coffee name is required!")
@@ -653,6 +673,7 @@ elif st.session_state.current_page == "New Roast":
                     "development_time": development_time,
                     "total_time": total_time,
                     "dtr_ratio": dtr_ratio,
+                    "amount_used_kg": amount_used_kg,
                     "notes": notes,
                     "bean_id": selected_bean_id  # Link to the green bean
                 }
@@ -662,16 +683,19 @@ elif st.session_state.current_page == "New Roast":
                 
                 if result and "roast_id" in result:
                     # Update green bean stock
-                    stock_update = api_call(
-                        f"/green-beans/{selected_bean_id}/update-stock", 
-                        method="put",
-                        data={"amount_used": amount_used_kg}
-                    )
-                    
-                    if stock_update:
-                        st.success(f"Roast recorded successfully! Green bean stock updated to {stock_update.get('new_stock_kg', 0)}kg")
+                    if selected_bean_id:
+                        stock_update = api_call(
+                            f"/green-beans/{selected_bean_id}/update-stock", 
+                            method="put",
+                            data={"amount_used": amount_used_kg}
+                        )
+                        
+                        if stock_update:
+                            st.success(f"Roast recorded successfully! Green bean stock updated to {stock_update.get('new_stock_kg', 0)}kg")
+                        else:
+                            st.warning("Roast recorded, but failed to update green bean stock.")
                     else:
-                        st.warning("Roast recorded, but failed to update green bean stock.")
+                        st.success("Roast recorded successfully!")
                 else:
                     st.error("Error recording roast!")
 
