@@ -374,3 +374,242 @@ elif st.session_state.current_page == "Cupping History":
 if 'drop_temp' in locals() or 'drop_temp' in globals():  # Check if the variable exists
     if drop_temp < 180 or drop_temp > 240:
         st.warning("Drop temperature outside normal range for Celsius (180°C - 240°C)")
+
+# Add the Green Beans page content
+elif st.session_state.current_page == "Green Beans":
+    st.header("🌱 Green Bean Inventory")
+    
+    # Create tabs for adding new beans and viewing inventory
+    tab1, tab2 = st.tabs(["Add New Beans", "View Inventory"])
+    
+    with tab1:
+        st.subheader("Record New Green Beans")
+        
+        with st.form("new_green_bean_form"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                name = st.text_input("Coffee Name")
+                origin = st.text_input("Origin")
+                processing = st.selectbox(
+                    "Processing Method",
+                    options=["Washed", "Natural", "Honey", "Anaerobic", "Other"]
+                )
+                variety = st.text_input("Variety")
+                altitude = st.text_input("Altitude")
+            
+            with col2:
+                purchase_date = st.date_input("Purchase Date")
+                initial_stock_kg = st.number_input("Initial Stock (kg)", min_value=0.1, value=60.0)
+                price_per_kg = st.number_input("Price per kg", min_value=0.0, value=10.0)
+                supplier = st.text_input("Supplier")
+                
+            notes = st.text_area("Notes")
+            
+            if st.form_submit_button("📝 Save Green Bean"):
+                if not name:
+                    st.error("Coffee name is required!")
+                else:
+                    # Create green bean record
+                    green_bean_data = {
+                        "name": name,
+                        "origin": origin,
+                        "processing": processing,
+                        "variety": variety,
+                        "altitude": altitude,
+                        "purchase_date": purchase_date.strftime("%Y-%m-%d"),
+                        "initial_stock_kg": initial_stock_kg,
+                        "price_per_kg": price_per_kg,
+                        "supplier": supplier,
+                        "notes": notes
+                    }
+                    
+                    # Send to API
+                    result = api_call("/green-beans/", method="post", data=green_bean_data)
+                    
+                    if result and "bean_id" in result:
+                        st.success("Green beans added successfully!")
+                    else:
+                        st.error("Error adding green beans!")
+    
+    with tab2:
+        st.subheader("Green Bean Inventory")
+        
+        # Get green bean data
+        green_beans = api_call('/green-beans/')
+        
+        if green_beans:
+            # Create DataFrame
+            df = pd.DataFrame(green_beans)
+            
+            # Add filters
+            st.subheader("Filters")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if 'name' in df.columns:
+                    coffee_options = sorted(df['name'].unique())
+                    selected_coffees = st.multiselect(
+                        "Filter by Coffee Name",
+                        options=coffee_options
+                    )
+                    
+                    if selected_coffees:
+                        df = df[df['name'].isin(selected_coffees)]
+            
+            with col2:
+                if 'origin' in df.columns:
+                    origin_options = sorted(df['origin'].unique())
+                    selected_origins = st.multiselect(
+                        "Filter by Origin",
+                        options=origin_options
+                    )
+                    
+                    if selected_origins:
+                        df = df[df['origin'].isin(selected_origins)]
+            
+            # Show only relevant columns and hide bean_id
+            display_cols = ['name', 'origin', 'processing', 'variety', 'altitude', 
+                           'purchase_date', 'initial_stock_kg', 'current_stock_kg', 
+                           'price_per_kg', 'supplier', 'notes']
+            
+            # Keep only columns that exist in the dataframe
+            display_cols = [col for col in display_cols if col in df.columns]
+            
+            # Display the inventory
+            if not df.empty:
+                st.dataframe(df[display_cols], hide_index=True, use_container_width=True)
+                
+                # Add download button
+                csv = df.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download Inventory",
+                    data=csv,
+                    file_name="green_bean_inventory.csv",
+                    mime="text/csv"
+                )
+            else:
+                st.info("No inventory records to display after filtering.")
+        else:
+            st.info("No green beans found in inventory.")
+
+# Update the New Roast section to use green bean inventory
+elif st.session_state.current_page == "New Roast":
+    st.header("☕ Log New Coffee Roast")
+    
+    # Get green bean inventory for selection
+    green_beans = api_call('/green-beans/')
+    
+    # Form for new roast
+    with st.form("new_roast_form"):
+        # If we have green beans in inventory
+        if green_beans:
+            # Create a dictionary for selection: display name -> bean_id
+            bean_options = {f"{bean['name']} ({bean['origin']}) - {bean['current_stock_kg']}kg available": 
+                            bean['bean_id'] for bean in green_beans}
+            
+            # Default to the first bean if available
+            default_bean = list(bean_options.keys())[0] if bean_options else None
+            
+            # Bean selection dropdown
+            selected_bean_display = st.selectbox(
+                "🌱 Select Green Beans",
+                options=list(bean_options.keys()),
+                index=0 if default_bean else None
+            )
+            
+            # Get the selected bean ID and info
+            if selected_bean_display:
+                selected_bean_id = bean_options[selected_bean_display]
+                selected_bean = next((bean for bean in green_beans if bean['bean_id'] == selected_bean_id), None)
+                
+                # Display info about the selected bean
+                if selected_bean:
+                    st.info(f"Selected: {selected_bean['name']} from {selected_bean['origin']}, "
+                            f"Processing: {selected_bean['processing']}, "
+                            f"Current stock: {selected_bean['current_stock_kg']}kg")
+        else:
+            st.warning("No green beans in inventory. Please add green beans first.")
+            selected_bean_id = None
+            selected_bean = None
+        
+        # Amount used for this roast
+        amount_used_kg = st.number_input(
+            "🏋️ Amount Used (kg)",
+            min_value=0.1,
+            max_value=float(selected_bean['current_stock_kg']) if selected_bean else 10.0,
+            value=1.0,
+            step=0.1
+        )
+        
+        # Other roast form fields
+        date = st.date_input("📅 Date")
+        
+        # Use the selected bean name if available
+        coffee_name = st.text_input(
+            "☕ Coffee Name", 
+            value=selected_bean['name'] if selected_bean else ""
+        )
+        
+        # Your existing roast parameters
+        col1, col2 = st.columns(2)
+        with col1:
+            agtron_whole = st.number_input("🎯 Agtron Whole Bean", min_value=0, max_value=100, value=90)
+            agtron_ground = st.number_input("🎯 Agtron Ground", min_value=0, max_value=100, value=95)
+            drop_temp = st.number_input("🌡️ Drop Temperature (°C)", min_value=180.0, max_value=240.0, value=210.0, step=0.5)
+        
+        with col2:
+            development_time = st.number_input("⏱️ Development Time (min)", min_value=0.0, max_value=5.0, value=1.0, step=0.01)
+            total_time = st.number_input("⏱️ Total Time (min)", min_value=0.0, max_value=20.0, value=12.0, step=0.01)
+            
+            # Calculate DTR automatically
+            if total_time > 0:
+                dtr_ratio = development_time / total_time
+            else:
+                dtr_ratio = 0
+            
+            st.metric("DTR Ratio", f"{dtr_ratio:.2f}")
+        
+        notes = st.text_area("📝 Roast Notes")
+        
+        submit_button = st.form_submit_button("📝 Save Roast")
+        
+        if submit_button:
+            if not selected_bean_id:
+                st.error("Please select green beans from inventory!")
+            elif not coffee_name:
+                st.error("Coffee name is required!")
+            elif selected_bean and amount_used_kg > selected_bean['current_stock_kg']:
+                st.error(f"Not enough stock! Only {selected_bean['current_stock_kg']}kg available.")
+            else:
+                # Create roast record
+                roast_data = {
+                    "date": date.strftime("%Y-%m-%d"),
+                    "coffee_name": coffee_name,
+                    "agtron_whole": agtron_whole,
+                    "agtron_ground": agtron_ground,
+                    "drop_temp": drop_temp,
+                    "development_time": development_time,
+                    "total_time": total_time,
+                    "dtr_ratio": dtr_ratio,
+                    "notes": notes,
+                    "bean_id": selected_bean_id  # Link to the green bean
+                }
+                
+                # Save the roast
+                result = api_call("/roasts/", method="post", data=roast_data)
+                
+                if result and "roast_id" in result:
+                    # Update green bean stock
+                    stock_update = api_call(
+                        f"/green-beans/{selected_bean_id}/update-stock", 
+                        method="put",
+                        data={"amount_used": amount_used_kg}
+                    )
+                    
+                    if stock_update:
+                        st.success(f"Roast recorded successfully! Green bean stock updated to {stock_update.get('new_stock_kg', 0)}kg")
+                    else:
+                        st.warning("Roast recorded, but failed to update green bean stock.")
+                else:
+                    st.error("Error recording roast!")
