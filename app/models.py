@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
 
@@ -8,7 +8,7 @@ class CoffeeRoast(BaseModel):
     coffee_name: str
     agtron_whole: int
     agtron_ground: int
-    drop_temp: float
+    drop_temp: Optional[float] = Field(None, description="Drop temperature in °C")
     development_time: float
     total_time: float
     dtr_ratio: float

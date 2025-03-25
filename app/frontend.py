@@ -96,7 +96,13 @@ elif st.session_state.current_page == "Record Roast":
         with col1:
             agtron_whole = st.number_input("🌰 Agtron Whole Bean", 0, 100)
             agtron_ground = st.number_input("🏺 Agtron Ground", 0, 100)
-            drop_temp = st.number_input("🌡️ Drop Temperature (°F)", 350.0, 450.0)
+            drop_temp = st.number_input(
+                "🌡️ Drop Temperature (°C)",
+                min_value=180.0,
+                max_value=240.0,
+                value=210.0,
+                step=0.5
+            )
         
         with col2:
             development_time = st.number_input("⏱️ Development Time (minutes)", 0.0, 30.0)
@@ -267,6 +273,10 @@ elif st.session_state.current_page == "Roast History":
                 file_name="coffee_roast_history.csv",
                 mime="text/csv"
             )
+            
+            # If you're doing any custom formatting of temperature values for display:
+            if 'drop_temp' in df.columns:
+                st.markdown(f"Temperature values are in **°C**")  # Add a note about the units
         else:
             st.info("No records to display.")
     else:
@@ -363,3 +373,7 @@ elif st.session_state.current_page == "Cupping History":
             pass  # Skip the error message for non-critical issues
     else:
         st.info("No cupping records found.") 
+
+# If you have any validation for temperature ranges:
+if drop_temp < 180 or drop_temp > 240:
+    st.warning("Drop temperature outside normal range for Celsius (180°C - 240°C)") 
