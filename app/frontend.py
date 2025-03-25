@@ -225,7 +225,7 @@ elif st.session_state.current_page == "Roast History":
         # Convert date strings to proper datetime format
         try:
             df['date'] = pd.to_datetime(df['date'])
-        except:
+        except Exception as e:
             pass
         
         # Add filters
@@ -250,7 +250,7 @@ elif st.session_state.current_page == "Roast History":
                         "Date Range",
                         value=(min_date, max_date)
                     )
-                except:
+                except Exception as e:
                     date_range = None
             else:
                 date_range = None
@@ -264,7 +264,7 @@ elif st.session_state.current_page == "Roast History":
                 start_date = pd.Timestamp(date_range[0])
                 end_date = pd.Timestamp(date_range[1])
                 df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
-            except:
+            except Exception as e:
                 # Silently handle date filtering errors
                 pass
                 
@@ -341,7 +341,7 @@ elif st.session_state.current_page == "Cupping History":
                         "Date Range",
                         value=(min_date, max_date)
                     )
-                except:
+                except Exception as e:
                     date_range = None
                 else:
                     date_range = None
@@ -355,7 +355,7 @@ elif st.session_state.current_page == "Cupping History":
                     start_date = pd.Timestamp(date_range[0])
                     end_date = pd.Timestamp(date_range[1])
                     df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
-                except:
+                except Exception as e:
                     pass  # Skip the error message for non-critical issues
             
             # Display data
@@ -376,12 +376,10 @@ elif st.session_state.current_page == "Cupping History":
                 )
             else:
                 st.info("No records to display after filtering.")
-        except Exception as e:
-            pass  # Skip the error message for non-critical issues
     else:
         st.info("No cupping records found.") 
 
 # If the check is in a section where drop_temp might not be defined
 if 'drop_temp' in locals() or 'drop_temp' in globals():  # Check if the variable exists
     if drop_temp < 180 or drop_temp > 240:
-        st.warning("Drop temperature outside normal range for Celsius (180°C - 240°C)") 
+        st.warning("Drop temperature outside normal range for Celsius (180°C - 240°C)")
