@@ -373,6 +373,7 @@ elif st.session_state.current_page == "Cupping History":
     else:
         st.info("No cupping records found.") 
 
-# If you have any validation for temperature ranges:
-if drop_temp < 180 or drop_temp > 240:
-    st.warning("Drop temperature outside normal range for Celsius (180°C - 240°C)") 
+# If the check is in a section where drop_temp might not be defined
+if 'drop_temp' in locals() or 'drop_temp' in globals():  # Check if the variable exists
+    if drop_temp < 180 or drop_temp > 240:
+        st.warning("Drop temperature outside normal range for Celsius (180°C - 240°C)") 
