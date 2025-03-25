@@ -212,7 +212,7 @@ elif st.session_state.current_page == "Roast History":
         
         # Reorder columns to put coffee_name first and drop the roast_id
         if 'coffee_name' in df.columns:
-            # List all columns excluding roast_id, with coffee_name first
+            # Define column order with coffee_name first
             cols = ['coffee_name', 'date', 'agtron_whole', 'agtron_ground', 'drop_temp',
                    'development_time', 'total_time', 'dtr_ratio', 'notes']
             
@@ -222,58 +222,50 @@ elif st.session_state.current_page == "Roast History":
             # Reorder dataframe
             df = df[available_cols]
         
-        # Convert date strings to proper datetime format
-        try:
-            df['date'] = pd.to_datetime(df['date'])
-        except Exception as e:
-            pass
-        
         # Add filters
         st.subheader("Filters")
         col1, col2 = st.columns(2)
+        
         with col1:
             if 'coffee_name' in df.columns:
                 coffee_options = sorted(df['coffee_name'].unique())
-                coffee_filter = st.multiselect(
+                selected_coffees = st.multiselect(
                     "Filter by Coffee Name",
                     options=coffee_options
                 )
-            else:
-                coffee_filter = []
                 
+                if selected_coffees:
+                    df = df[df['coffee_name'].isin(selected_coffees)]
+        
         with col2:
             if 'date' in df.columns:
                 try:
-                    min_date = df['date'].min().date() if not pd.isna(df['date'].min()) else datetime.now().date()
-                    max_date = df['date'].max().date() if not pd.isna(df['date'].max()) else datetime.now().date()
+                    # Convert to datetime first
+                    df['date'] = pd.to_datetime(df['date'])
+                    min_date = df['date'].min().date()
+                    max_date = df['date'].max().date()
+                    
                     date_range = st.date_input(
                         "Date Range",
-                        value=(min_date, max_date)
+                        value=(min_date, max_date),
+                        key="roast_date_range"
                     )
+                    
+                    if len(date_range) == 2:
+                        start_date = pd.Timestamp(date_range[0])
+                        end_date = pd.Timestamp(date_range[1])
+                        df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
                 except Exception as e:
-                    date_range = None
-            else:
-                date_range = None
-                
-        # Apply filters
-        if coffee_filter and 'coffee_name' in df.columns:
-            df = df[df['coffee_name'].isin(coffee_filter)]
-            
-        if date_range and 'date' in df.columns and len(date_range) == 2:
-            try:
-                start_date = pd.Timestamp(date_range[0])
-                end_date = pd.Timestamp(date_range[1])
-                df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
-            except Exception as e:
-                # Silently handle date filtering errors
-                pass
-                
+                    pass
+        
         # Display data
         st.subheader("Roast Records")
         if not df.empty:
+            # Use a wider layout for the table
             st.dataframe(
                 df.sort_values('date', ascending=False) if 'date' in df.columns else df,
-                hide_index=True
+                hide_index=True,
+                use_container_width=True  # Make the table use the full width
             )
             
             # Add download button
@@ -308,7 +300,7 @@ elif st.session_state.current_page == "Cupping History":
         
         # Reorder columns to put coffee_name first and drop the IDs
         if 'coffee_name' in df.columns:
-            # List all columns excluding score_id and roast_id, with coffee_name first
+            # Define the desired column order with coffee_name first
             cols = ['coffee_name', 'date', 'fragrance_aroma', 'flavor', 'aftertaste', 'acidity', 
                    'body', 'uniformity', 'clean_cup', 'sweetness', 'overall', 'defects', 
                    'total_score', 'notes']
@@ -319,65 +311,64 @@ elif st.session_state.current_page == "Cupping History":
             # Reorder dataframe
             df = df[available_cols]
         
-        # Add filters with robust error handling
+        # Add filters
         st.subheader("Filters")
         col1, col2 = st.columns(2)
+        
         with col1:
             if 'coffee_name' in df.columns:
-                coffee_options = sorted(df['coffee_name'].dropna().unique())
-                coffee_filter = st.multiselect(
+                coffee_options = sorted(df['coffee_name'].unique())
+                selected_coffees = st.multiselect(
                     "Filter by Coffee Name",
                     options=coffee_options
                 )
-            else:
-                coffee_filter = []
                 
+                if selected_coffees:
+                    df = df[df['coffee_name'].isin(selected_coffees)]
+        
         with col2:
             if 'date' in df.columns:
                 try:
-                    min_date = df['date'].min().date() if not pd.isna(df['date'].min()) else datetime.now().date()
-                    max_date = df['date'].max().date() if not pd.isna(df['date'].max()) else datetime.now().date()
+                    # Convert to datetime first
+                    df['date'] = pd.to_datetime(df['date'])
+                    min_date = df['date'].min().date()
+                    max_date = df['date'].max().date()
+                    
                     date_range = st.date_input(
                         "Date Range",
-                        value=(min_date, max_date)
+                        value=(min_date, max_date),
+                        key="cupping_date_range"
                     )
+                    
+                    if len(date_range) == 2:
+                        start_date = pd.Timestamp(date_range[0])
+                        end_date = pd.Timestamp(date_range[1])
+                        df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
                 except Exception as e:
-                    date_range = None
-                else:
-                    date_range = None
+                    pass
+        
+        # Display data
+        st.subheader("Cupping Scores")
+        if not df.empty:
+            # Use a wider layout for the table
+            st.dataframe(
+                df.sort_values('date', ascending=False) if 'date' in df.columns else df,
+                hide_index=True,
+                use_container_width=True  # Make the table use the full width
+            )
             
-            # Apply filters with error handling
-            if coffee_filter and 'coffee_name' in df.columns:
-                df = df[df['coffee_name'].isin(coffee_filter)]
-                
-            if date_range and 'date' in df.columns and len(date_range) == 2:
-                try:
-                    start_date = pd.Timestamp(date_range[0])
-                    end_date = pd.Timestamp(date_range[1])
-                    df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
-                except Exception as e:
-                    pass  # Skip the error message for non-critical issues
-            
-            # Display data
-            st.subheader("Cupping Scores")
-            if not df.empty:
-                st.dataframe(
-                    df.sort_values('date', ascending=False) if 'date' in df.columns else df,
-                    hide_index=True
-                )
-                
-                # Add download button
-                csv = df.to_csv(index=False)
-                st.download_button(
-                    label="📥 Download Cupping History",
-                    data=csv,
-                    file_name="coffee_cupping_history.csv",
-                    mime="text/csv"
-                )
-            else:
-                st.info("No records to display after filtering.")
+            # Add download button
+            csv = df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download Cupping History",
+                data=csv,
+                file_name="coffee_cupping_history.csv",
+                mime="text/csv"
+            )
+        else:
+            st.info("No records to display after filtering.")
     else:
-        st.info("No cupping records found.") 
+        st.info("No cupping records found.")
 
 # If the check is in a section where drop_temp might not be defined
 if 'drop_temp' in locals() or 'drop_temp' in globals():  # Check if the variable exists
