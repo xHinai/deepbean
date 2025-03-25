@@ -13,16 +13,13 @@ logger = logging.getLogger(__name__)
 # Get database URL from environment variables
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Print out which database we're using (for debugging)
-if DATABASE_URL:
-    logger.info(f"Using DATABASE_URL: {DATABASE_URL.split('@')[0]}...")
-    # If using PostgreSQL, convert the URL format
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-        logger.info("Fixed PostgreSQL URL format")
-else:
-    # Do NOT allow fallback to SQLite
+# Ensure DATABASE_URL is set
+if not DATABASE_URL:
     raise Exception("DATABASE_URL environment variable not set! Cannot proceed without a database connection.")
+
+# If using PostgreSQL, convert the URL format
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # Create database connection
 database = databases.Database(DATABASE_URL)
@@ -74,7 +71,7 @@ try:
     logger.info("Database tables initialized")
 except Exception as e:
     logger.error(f"Failed to initialize database: {str(e)}")
-    raise e  # Re-raise the exception to fail startup if database isn't available
+    raise e
 
 app = FastAPI()
 
@@ -84,14 +81,9 @@ async def startup():
         logger.info("Connecting to database...")
         await database.connect()
         logger.info("Database connection established")
-        
-        # Verify tables exist by querying them
-        query = "SELECT * FROM coffee_roasts LIMIT 1"
-        result = await database.fetch_one(query)
-        logger.info(f"Test query result: {result}")
     except Exception as e:
         logger.error(f"Startup error: {str(e)}")
-        raise e  # Fail startup if database isn't working
+        raise e
 
 @app.on_event("shutdown")
 async def shutdown():
