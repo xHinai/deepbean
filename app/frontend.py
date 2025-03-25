@@ -5,6 +5,7 @@ import uuid
 import os
 import json
 import pandas as pd
+import altair as alt
 
 # Set page title
 st.set_page_config(page_title="Coffee Roasting & Cupping App", page_icon="☕")
@@ -419,6 +420,7 @@ elif st.session_state.current_page == "Green Beans":
                         "altitude": altitude,
                         "purchase_date": purchase_date.strftime("%Y-%m-%d"),
                         "initial_stock_kg": initial_stock_kg,
+                        "current_stock_kg": initial_stock_kg,  # Initialize current stock equal to initial
                         "price_per_kg": price_per_kg,
                         "supplier": supplier,
                         "notes": notes
@@ -468,9 +470,49 @@ elif st.session_state.current_page == "Green Beans":
                     if selected_origins:
                         df = df[df['origin'].isin(selected_origins)]
             
+            # Show stock status with color coding
+            if 'current_stock_kg' in df.columns and 'initial_stock_kg' in df.columns:
+                # Calculate percentage of stock remaining
+                df['stock_percent'] = (df['current_stock_kg'] / df['initial_stock_kg'] * 100).round(1)
+                
+                # Add status column
+                def get_status(percent):
+                    if percent <= 10:
+                        return "Critical"
+                    elif percent <= 25:
+                        return "Low"
+                    elif percent <= 50:
+                        return "Medium"
+                    else:
+                        return "Good"
+                
+                df['status'] = df['stock_percent'].apply(get_status)
+                
+                # Display stock overview
+                st.subheader("Stock Overview")
+                status_counts = df['status'].value_counts().reset_index()
+                status_counts.columns = ['Status', 'Count']
+                
+                # Set up colors for the statuses
+                colors = {
+                    'Critical': '#FF5252',
+                    'Low': '#FFC107',
+                    'Medium': '#2196F3',
+                    'Good': '#4CAF50'
+                }
+                
+                # Display as a bar chart
+                status_chart = alt.Chart(status_counts).mark_bar().encode(
+                    x=alt.X('Status:N', sort=['Critical', 'Low', 'Medium', 'Good']),
+                    y='Count:Q',
+                    color=alt.Color('Status:N', scale=alt.Scale(domain=list(colors.keys()), range=list(colors.values())))
+                ).properties(width=600)
+                
+                st.altair_chart(status_chart, use_container_width=True)
+            
             # Show only relevant columns and hide bean_id
-            display_cols = ['name', 'origin', 'processing', 'variety', 'altitude', 
-                           'purchase_date', 'initial_stock_kg', 'current_stock_kg', 
+            display_cols = ['name', 'origin', 'processing', 'variety', 'purchase_date', 
+                           'initial_stock_kg', 'current_stock_kg', 'stock_percent', 'status',
                            'price_per_kg', 'supplier', 'notes']
             
             # Keep only columns that exist in the dataframe
@@ -478,7 +520,26 @@ elif st.session_state.current_page == "Green Beans":
             
             # Display the inventory
             if not df.empty:
-                st.dataframe(df[display_cols], hide_index=True, use_container_width=True)
+                # Style the dataframe
+                def highlight_status(val):
+                    if val == 'Critical':
+                        return 'background-color: #FFEBEE'
+                    elif val == 'Low':
+                        return 'background-color: #FFF8E1'
+                    elif val == 'Medium':
+                        return 'background-color: #E3F2FD'
+                    elif val == 'Good':
+                        return 'background-color: #E8F5E9'
+                    return ''
+                
+                if 'status' in display_cols:
+                    styled_df = df[display_cols].style.apply(
+                        lambda x: x.map(highlight_status) if x.name == 'status' else [''] * len(x),
+                        axis=0
+                    )
+                    st.dataframe(styled_df, hide_index=True, use_container_width=True)
+                else:
+                    st.dataframe(df[display_cols], hide_index=True, use_container_width=True)
                 
                 # Add download button
                 csv = df.to_csv(index=False)
@@ -613,3 +674,6 @@ elif st.session_state.current_page == "New Roast":
                         st.warning("Roast recorded, but failed to update green bean stock.")
                 else:
                     st.error("Error recording roast!")
+
+def set_page(page):
+    st.session_state.current_page = page
